@@ -1,5 +1,56 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { IPC_CHANNELS, TabInfo, Profile, PrivacyStats } from '../security/ipc-contracts';
+import type { TabInfo, Profile, PrivacyStats } from '../security/ipc-contracts';
+
+const IPC_CHANNELS = {
+  // Tabs
+  TAB_CREATE: 'tab:create',
+  TAB_CLOSE: 'tab:close',
+  TAB_SWITCH: 'tab:switch',
+  TAB_NAVIGATE: 'tab:navigate',
+  TAB_GO_BACK: 'tab:go-back',
+  TAB_GO_FORWARD: 'tab:go-forward',
+  TAB_RELOAD: 'tab:reload',
+  TAB_LIST: 'tab:list',
+  
+  // Tab Events
+  TAB_UPDATED: 'tab:updated',
+  TAB_CLOSED: 'tab:closed',
+
+  // Profiles
+  PROFILE_LIST: 'profile:list',
+  PROFILE_CREATE: 'profile:create',
+  PROFILE_UPDATE: 'profile:update',
+  PROFILE_DELETE: 'profile:delete',
+  PROFILE_DUPLICATE: 'profile:duplicate',
+  PROFILE_EXPORT: 'profile:export',
+  PROFILE_IMPORT: 'profile:import',
+  PROFILE_SET_ACTIVE: 'profile:set-active',
+  PROFILE_LAUNCH: 'profile:launch',
+  PROFILE_STOP: 'profile:stop',
+  PROFILE_GET_RUNNING: 'profile:get-running',
+  PROFILE_RUNNING_UPDATED: 'profile:running-updated',
+
+  // Cookies & Storage
+  COOKIE_GET: 'cookie:get',
+  COOKIE_DELETE: 'cookie:delete',
+  COOKIE_CLEAR_ALL: 'cookie:clear-all',
+  STORAGE_CLEAR: 'storage:clear',
+
+  // Network & Proxy
+  PROXY_TEST: 'proxy:test',
+
+  // Permissions
+  PERMISSION_LIST: 'permission:list',
+  PERMISSION_SET: 'permission:set',
+  PERMISSION_RESET: 'permission:reset',
+
+  // Privacy & Stats
+  PRIVACY_GET_STATS: 'privacy:get-stats',
+  PRIVACY_STATS_UPDATED: 'privacy:stats-updated',
+
+  // DevTools
+  DEVTOOLS_TOGGLE: 'devtools:toggle',
+} as const;
 
 const browserAPI = {
   // Tab Management

@@ -10,7 +10,7 @@ import {
   User,
   Terminal,
 } from 'lucide-react';
-import { TabInfo, Profile } from '../../security/ipc-contracts';
+import { TabInfo, Profile, PrivacyStats } from '../../security/ipc-contracts';
 
 interface NavigationBarProps {
   activeTab?: TabInfo;
@@ -30,6 +30,7 @@ interface NavigationBarProps {
 export const NavigationBar: React.FC<NavigationBarProps> = ({
   activeTab,
   activeProfile,
+  stats,
   urlInput,
   setUrlInput,
   onNavigate,
@@ -38,6 +39,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
   onReload,
   onToggleDevTools,
   onOpenProfiles,
+  onOpenPrivacyDashboard,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const isSecure = urlInput.startsWith('https://');

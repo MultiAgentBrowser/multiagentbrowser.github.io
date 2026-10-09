@@ -174,3 +174,4 @@ export class BrowserWindowManager {
     return false;
   }
 }
+
