@@ -20,6 +20,9 @@ export const ProxyConfigSchema = z.object({
 });
 export type ProxyConfig = z.infer<typeof ProxyConfigSchema>;
 
+export const BrowserTypeSchema = z.enum(['chrome', 'edge', 'brave']);
+export type BrowserType = z.infer<typeof BrowserTypeSchema>;
+
 export const ProfileSchema = z.object({
   id: z.string(),
   name: z.string().min(1).max(64),
@@ -33,6 +36,8 @@ export const ProfileSchema = z.object({
     port: 8080,
   }),
   os: z.enum(['mac', 'windows']).default('mac'),
+  browserType: BrowserTypeSchema.default('chrome'),
+  browserVersion: z.string().default('131.0.6778.86'),
   notes: z.string().default(''),
   tags: z.array(z.string()).default([]),
   color: z.string().default('#3b82f6'),

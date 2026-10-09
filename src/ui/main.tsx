@@ -21,7 +21,7 @@ const App: React.FC = () => {
   ]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string>('default');
-  const [isProfilesModalOpen, setIsProfilesModalOpen] = useState<boolean>(false);
+  const [isProfilesModalOpen, setIsProfilesModalOpen] = useState<boolean>(true);
   const [isPrivacyDashboardOpen, setIsPrivacyDashboardOpen] = useState<boolean>(false);
   const [activeTabId, setActiveTabId] = useState<string>('tab-initial');
   const [urlInput, setUrlInput] = useState<string>('https://duckduckgo.com');

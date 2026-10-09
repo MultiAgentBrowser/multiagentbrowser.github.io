@@ -66,7 +66,7 @@ export class BrowserWindowManager {
       height: 840,
       minWidth: 800,
       minHeight: 600,
-      title: `Privacy Browser - [${profile.name}]`,
+      title: `${profile.name} • ${(profile.browserType || 'chrome').toUpperCase()} ${profile.browserVersion ? 'v' + profile.browserVersion.split('.')[0] : ''} [${profile.os === 'windows' ? 'Windows' : 'macOS'}] - Privacy Browser`,
       titleBarStyle: platform.isMac ? 'hiddenInset' : 'default',
       trafficLightPosition: { x: 12, y: 12 },
       backgroundColor: '#121316',

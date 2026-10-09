@@ -98,7 +98,15 @@ export class ViewManager {
     TrackerBlocker.attachTrackerBlocking(customSession, profileId);
     PermissionManager.attachPermissionHandlers(customSession, profileId);
 
+    const { getBrowserUserAgent } = require('../profiles/browser-definitions');
+
     if (currentProfile) {
+      const browserType = currentProfile.browserType || 'chrome';
+      const browserVersion = currentProfile.browserVersion || '131.0.6778.86';
+      const os = currentProfile.os || 'mac';
+      const userAgent = getBrowserUserAgent(browserType, browserVersion, os);
+      customSession.setUserAgent(userAgent);
+
       WebRTCController.applyWebRTCPolicy(customSession, currentProfile.webrtcPolicy || 'default_public_interface_only');
       if (currentProfile.proxy) {
         ProxyManager.applyProxyConfig(customSession, currentProfile.proxy);

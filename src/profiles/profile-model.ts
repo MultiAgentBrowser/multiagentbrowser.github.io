@@ -21,6 +21,8 @@ export const ProfileRecordSchema = z.object({
     port: 8080,
   }),
   os: z.enum(['mac', 'windows']).default('mac'),
+  browserType: z.enum(['chrome', 'edge', 'brave']).default('chrome'),
+  browserVersion: z.string().default('131.0.6778.86'),
   notes: z.string().default(''),
   tags: z.array(z.string()).default([]),
   color: z.string().default('#3b82f6'),
@@ -45,6 +47,8 @@ export interface CreateProfileDTO {
   webrtcPolicy?: WebRTCPolicy;
   proxy?: ProxyConfig;
   os?: 'mac' | 'windows';
+  browserType?: 'chrome' | 'edge' | 'brave';
+  browserVersion?: string;
   notes?: string;
   tags?: string[];
   color?: string;
@@ -56,6 +60,8 @@ export interface UpdateProfileDTO {
   webrtcPolicy?: WebRTCPolicy;
   proxy?: ProxyConfig;
   os?: 'mac' | 'windows';
+  browserType?: 'chrome' | 'edge' | 'brave';
+  browserVersion?: string;
   notes?: string;
   tags?: string[];
   color?: string;

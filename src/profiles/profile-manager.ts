@@ -69,6 +69,8 @@ export class ProfileManager {
     webrtcPolicy: 'default' | 'default_public_interface_only' | 'disable_non_proxied_udp';
     proxy: any;
     os?: 'mac' | 'windows';
+    browserType?: 'chrome' | 'edge' | 'brave';
+    browserVersion?: string;
     notes?: string;
     tags?: string[];
     color: string;
@@ -77,6 +79,8 @@ export class ProfileManager {
     const profile: ProfileRecord = {
       ...data,
       os: data.os || 'mac',
+      browserType: data.browserType || 'chrome',
+      browserVersion: data.browserVersion || '131.0.6778.86',
       notes: data.notes || '',
       tags: data.tags || [],
       createdAt: now,
@@ -98,6 +102,8 @@ export class ProfileManager {
       webrtcPolicy: dto.webrtcPolicy || 'default_public_interface_only',
       proxy: dto.proxy || { enabled: false, mode: 'direct', host: '', port: 8080 },
       os: dto.os || 'mac',
+      browserType: dto.browserType || 'chrome',
+      browserVersion: dto.browserVersion || '131.0.6778.86',
       notes: dto.notes || '',
       tags: dto.tags || [],
       color: dto.color || '#8b5cf6',
@@ -142,6 +148,8 @@ export class ProfileManager {
     if (dto.webrtcPolicy !== undefined) profile.webrtcPolicy = dto.webrtcPolicy;
     if (dto.proxy !== undefined) profile.proxy = dto.proxy;
     if (dto.os !== undefined) profile.os = dto.os;
+    if (dto.browserType !== undefined) profile.browserType = dto.browserType;
+    if (dto.browserVersion !== undefined) profile.browserVersion = dto.browserVersion;
     if (dto.notes !== undefined) profile.notes = dto.notes;
     if (dto.tags !== undefined) profile.tags = dto.tags;
     if (dto.color !== undefined) profile.color = dto.color;

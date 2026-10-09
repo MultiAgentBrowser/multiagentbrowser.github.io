@@ -23,6 +23,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { Profile, ProxyConfig } from '../../security/ipc-contracts';
+import { AVAILABLE_BROWSERS, getBrowserUserAgent } from '../../profiles/browser-definitions';
 
 interface ProfileSwitcherProps {
   isOpen: boolean;
@@ -44,6 +45,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   // Navigation & filtering state
   const [searchQuery, setSearchQuery] = useState('');
   const [filterOS, setFilterOS] = useState<'all' | 'mac' | 'windows'>('all');
+  const [filterBrowser, setFilterBrowser] = useState<'all' | 'chrome' | 'edge' | 'brave'>('all');
   const [runningProfileIds, setRunningProfileIds] = useState<string[]>([]);
 
   // Creation & Editing modal state
@@ -53,6 +55,8 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   // Form fields
   const [name, setName] = useState('');
   const [os, setOs] = useState<'mac' | 'windows'>('mac');
+  const [browserType, setBrowserType] = useState<'chrome' | 'edge' | 'brave'>('chrome');
+  const [browserVersion, setBrowserVersion] = useState<string>('131.0.6778.86');
   const [color, setColor] = useState('#3b82f6');
   const [notes, setNotes] = useState('');
   const [privacyLevel, setPrivacyLevel] = useState<'standard' | 'balanced' | 'strict'>('balanced');
@@ -99,7 +103,9 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
       (p as any).notes?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.proxy.host.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesOS = filterOS === 'all' || (p as any).os === filterOS;
-    return matchesQuery && matchesOS;
+    const pBrowser = (p as any).browserType || 'chrome';
+    const matchesBrowser = filterBrowser === 'all' || pBrowser === filterBrowser;
+    return matchesQuery && matchesOS && matchesBrowser;
   });
 
   const handleLaunch = async (profileId: string) => {
@@ -122,6 +128,8 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     setEditingProfileId(null);
     setName(`Profile ${profiles.length + 1}`);
     setOs('mac');
+    setBrowserType('chrome');
+    setBrowserVersion('131.0.6778.86');
     setColor('#3b82f6');
     setNotes('');
     setPrivacyLevel('balanced');
@@ -141,6 +149,8 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     setEditingProfileId(p.id);
     setName(p.name);
     setOs((p as any).os || 'mac');
+    setBrowserType((p as any).browserType || 'chrome');
+    setBrowserVersion((p as any).browserVersion || '131.0.6778.86');
     setColor(p.color || '#3b82f6');
     setNotes((p as any).notes || '');
     setPrivacyLevel(p.privacyLevel);
@@ -175,9 +185,11 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
         webrtcPolicy,
         proxy: proxyData,
         os,
+        browserType,
+        browserVersion,
         notes,
         color,
-      });
+      } as any);
       if (andLaunch) {
         await handleLaunch(editingProfileId);
       }
@@ -189,6 +201,8 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
         webrtcPolicy,
         proxy: proxyData,
         os,
+        browserType,
+        browserVersion,
         notes,
         color,
       } as any);
@@ -439,26 +453,50 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
             />
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 12, color: '#8b92a2', marginRight: 4 }}>Platform:</span>
-            {(['all', 'mac', 'windows'] as const).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => setFilterOS(mode)}
-                style={{
-                  padding: '5px 12px',
-                  borderRadius: 6,
-                  border: 'none',
-                  fontSize: 12,
-                  textTransform: 'capitalize',
-                  cursor: 'pointer',
-                  backgroundColor: filterOS === mode ? '#3b82f6' : '#222533',
-                  color: filterOS === mode ? '#ffffff' : '#9ba1b0',
-                }}
-              >
-                {mode === 'all' ? 'All OS' : mode === 'mac' ? 'macOS' : 'Windows'}
-              </button>
-            ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 12, color: '#8b92a2', marginRight: 2 }}>Browser:</span>
+              {(['all', 'chrome', 'edge', 'brave'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setFilterBrowser(mode)}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: 6,
+                    border: 'none',
+                    fontSize: 11,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    backgroundColor: filterBrowser === mode ? '#10b981' : '#222533',
+                    color: filterBrowser === mode ? '#ffffff' : '#9ba1b0',
+                  }}
+                >
+                  {mode === 'all' ? 'All Browsers' : mode === 'chrome' ? 'Chrome' : mode === 'edge' ? 'Edge' : 'Brave'}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 12, color: '#8b92a2', marginRight: 2 }}>Platform:</span>
+              {(['all', 'mac', 'windows'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setFilterOS(mode)}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: 6,
+                    border: 'none',
+                    fontSize: 11,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    backgroundColor: filterOS === mode ? '#3b82f6' : '#222533',
+                    color: filterOS === mode ? '#ffffff' : '#9ba1b0',
+                  }}
+                >
+                  {mode === 'all' ? 'All OS' : mode === 'mac' ? 'macOS' : 'Windows'}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -509,9 +547,10 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
               <tr style={{ borderBottom: '1px solid #232636', color: '#8b92a2', fontSize: 11, textTransform: 'uppercase' }}>
                 <th style={{ padding: '12px 24px' }}>Profile Name</th>
                 <th style={{ padding: '12px 16px' }}>Status</th>
-                <th style={{ padding: '12px 16px' }}>Proxy</th>
-                <th style={{ padding: '12px 16px' }}>Privacy & WebRTC</th>
+                <th style={{ padding: '12px 16px' }}>Browser & Version</th>
                 <th style={{ padding: '12px 16px' }}>OS</th>
+                <th style={{ padding: '12px 16px' }}>Proxy</th>
+                <th style={{ padding: '12px 16px' }}>Privacy</th>
                 <th style={{ padding: '12px 24px', textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
@@ -520,6 +559,8 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                 const isRunning = runningProfileIds.includes(p.id);
                 const hasProxy = p.proxy.enabled && p.proxy.host;
                 const profileOs = (p as any).os || 'mac';
+                const profileBrowser = (p as any).browserType || 'chrome';
+                const profileVersion = (p as any).browserVersion || '131.0.6778.86';
 
                 return (
                   <tr
@@ -597,6 +638,36 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                       )}
                     </td>
 
+                    {/* Browser & Version */}
+                    <td style={{ padding: '14px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            backgroundColor: profileBrowser === 'edge' ? '#0284c7' : profileBrowser === 'brave' ? '#ea580c' : '#2563eb',
+                            color: '#ffffff',
+                            padding: '2px 7px',
+                            borderRadius: 4,
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          {profileBrowser}
+                        </span>
+                        <span style={{ color: '#e2e4e9', fontSize: 12, fontFamily: 'monospace' }}>
+                          v{profileVersion.split('.')[0]}
+                        </span>
+                      </div>
+                    </td>
+
+                    {/* OS Platform */}
+                    <td style={{ padding: '14px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#9ba1b0', fontSize: 12 }}>
+                        {profileOs === 'windows' ? <Monitor size={15} /> : <Apple size={15} />}
+                        <span>{profileOs === 'windows' ? 'Windows' : 'macOS'}</span>
+                      </div>
+                    </td>
+
                     {/* Proxy */}
                     <td style={{ padding: '14px 16px' }}>
                       {hasProxy ? (
@@ -634,13 +705,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                       </div>
                     </td>
 
-                    {/* OS Platform */}
-                    <td style={{ padding: '14px 16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#9ba1b0', fontSize: 12 }}>
-                        {profileOs === 'windows' ? <Monitor size={15} /> : <Apple size={15} />}
-                        <span>{profileOs === 'windows' ? 'Windows' : 'macOS'}</span>
-                      </div>
-                    </td>
+
 
                     {/* Actions */}
                     <td style={{ padding: '14px 24px', textAlign: 'right' }}>
@@ -857,6 +922,85 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                     <option value="windows">Windows</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Browser Engine & Version Selection (Incognition Style) */}
+              <div style={{ display: 'flex', gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
+                    Browser Engine
+                  </label>
+                  <select
+                    value={browserType}
+                    onChange={(e: any) => {
+                      const newType = e.target.value;
+                      setBrowserType(newType);
+                      const def = AVAILABLE_BROWSERS.find((b) => b.id === newType);
+                      if (def) setBrowserVersion(def.defaultVersion);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '9px 10px',
+                      backgroundColor: '#12131b',
+                      border: '1px solid #2f3448',
+                      borderRadius: 8,
+                      color: '#ffffff',
+                      fontSize: 13,
+                      boxSizing: 'border-box',
+                      outline: 'none',
+                    }}
+                  >
+                    <option value="chrome">Google Chrome</option>
+                    <option value="edge">Microsoft Edge</option>
+                    <option value="brave">Brave Browser</option>
+                  </select>
+                </div>
+
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
+                    Browser Version
+                  </label>
+                  <select
+                    value={browserVersion}
+                    onChange={(e) => setBrowserVersion(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 10px',
+                      backgroundColor: '#12131b',
+                      border: '1px solid #2f3448',
+                      borderRadius: 8,
+                      color: '#ffffff',
+                      fontSize: 13,
+                      boxSizing: 'border-box',
+                      outline: 'none',
+                    }}
+                  >
+                    {AVAILABLE_BROWSERS.find((b) => b.id === browserType)?.versions.map((ver) => (
+                      <option key={ver} value={ver}>
+                        v{ver} {ver === AVAILABLE_BROWSERS.find((b) => b.id === browserType)?.defaultVersion ? '(Latest)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* User-Agent Preview */}
+              <div
+                style={{
+                  backgroundColor: '#111218',
+                  padding: '9px 12px',
+                  borderRadius: 6,
+                  border: '1px solid #25283a',
+                  fontSize: 11,
+                  color: '#9ba1b0',
+                  lineHeight: '1.4',
+                  wordBreak: 'break-all',
+                }}
+              >
+                <span style={{ color: '#60a5fa', fontWeight: 600 }}>Emulated User-Agent: </span>
+                <span style={{ color: '#d1d5db', fontFamily: 'monospace' }}>
+                  {getBrowserUserAgent(browserType, browserVersion, os)}
+                </span>
               </div>
 
               {/* Notes */}

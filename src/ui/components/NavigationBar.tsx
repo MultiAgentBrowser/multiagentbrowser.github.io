@@ -110,27 +110,25 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
 
       <button
         className="nav-btn"
-        title={`Profile: ${activeProfile?.name || 'Default'}`}
+        title="Open Incognition Profile Hub"
         onClick={onOpenProfiles}
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: 6,
           width: 'auto',
-          padding: '0 8px',
-          background: '#232634',
+          padding: '0 10px',
+          background: 'rgba(59, 130, 246, 0.15)',
+          border: '1px solid rgba(59, 130, 246, 0.4)',
+          borderRadius: 6,
         }}
       >
-        <div
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            backgroundColor: activeProfile?.color || '#3b82f6',
-          }}
-        />
-        <span style={{ fontSize: 12, color: '#e2e4e9', fontWeight: 500 }}>
-          {activeProfile?.name || 'Profile'}
+        <User size={14} color="#3b82f6" />
+        <span style={{ fontSize: 12, color: '#60a5fa', fontWeight: 600 }}>
+          {activeProfile?.name || 'Profiles Hub'}
+        </span>
+        <span style={{ fontSize: 10, backgroundColor: '#1e293b', color: '#93c5fd', padding: '1px 5px', borderRadius: 3 }}>
+          {((activeProfile as any)?.browserType || 'Chrome').toUpperCase()}
         </span>
       </button>
 
