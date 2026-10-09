@@ -110,9 +110,17 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
 
   const handleLaunch = async (profileId: string) => {
     if (window.browserAPI && (window.browserAPI as any).launchProfile) {
-      await (window.browserAPI as any).launchProfile(profileId);
-      const running = await (window.browserAPI as any).getRunningProfiles();
-      setRunningProfileIds(running);
+      try {
+        const result = await (window.browserAPI as any).launchProfile(profileId);
+        if (!result.success) {
+          alert('This profile is already running in its own browser window.');
+        }
+        const running = await (window.browserAPI as any).getRunningProfiles();
+        setRunningProfileIds(running);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        alert(`Could not launch profile: ${message}`);
+      }
     }
   };
 
@@ -334,18 +342,19 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <h2 style={{ fontSize: 18, fontWeight: 700, color: '#ffffff', margin: 0 }}>
-                  Profile Manager
+                  My Browser
                 </h2>
                 <span
                   style={{
                     fontSize: 11,
-                    backgroundColor: '#25293a',
-                    color: '#9ba1b0',
+                    backgroundColor: '#1e293b',
+                    color: '#38bdf8',
                     padding: '2px 8px',
                     borderRadius: 10,
+                    fontWeight: 600,
                   }}
                 >
-                  {profiles.length} Total • {runningProfileIds.length} Running
+                  Running Profiles: {runningProfileIds.length} ({profiles.length} Total)
                 </span>
               </div>
               <p style={{ fontSize: 12, color: '#8b92a2', margin: '2px 0 0 0' }}>
@@ -547,7 +556,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
               <tr style={{ borderBottom: '1px solid #232636', color: '#8b92a2', fontSize: 11, textTransform: 'uppercase' }}>
                 <th style={{ padding: '12px 24px' }}>Profile Name</th>
                 <th style={{ padding: '12px 16px' }}>Status</th>
-                <th style={{ padding: '12px 16px' }}>Browser & Version</th>
+                <th style={{ padding: '12px 16px' }}>Browser Identity & Version</th>
                 <th style={{ padding: '12px 16px' }}>OS</th>
                 <th style={{ padding: '12px 16px' }}>Proxy</th>
                 <th style={{ padding: '12px 16px' }}>Privacy</th>
@@ -924,11 +933,11 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                 </div>
               </div>
 
-              {/* Browser Engine & Version Selection (Incognition Style) */}
+              {/* Select the browser identity exposed to websites by the bundled Chromium runtime. */}
               <div style={{ display: 'flex', gap: 12 }}>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
-                    Browser Engine
+                    Website Browser Identity
                   </label>
                   <select
                     value={browserType}
@@ -984,6 +993,10 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                 </div>
               </div>
 
+              <div style={{ fontSize: 11, color: '#8b92a2', marginTop: -8 }}>
+                All profiles launch the bundled standalone Chromium browser. This setting changes only the browser identity websites see.
+              </div>
+
               {/* User-Agent Preview */}
               <div
                 style={{
@@ -997,7 +1010,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                   wordBreak: 'break-all',
                 }}
               >
-                <span style={{ color: '#60a5fa', fontWeight: 600 }}>Emulated User-Agent: </span>
+                <span style={{ color: '#60a5fa', fontWeight: 600 }}>Website User-Agent: </span>
                 <span style={{ color: '#d1d5db', fontFamily: 'monospace' }}>
                   {getBrowserUserAgent(browserType, browserVersion, os)}
                 </span>

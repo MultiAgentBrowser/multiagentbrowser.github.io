@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ProfileManager } from '../../src/profiles/profile-manager';
+import { ProfileDatabase } from '../../src/database/profile-database';
 import { PermissionManager } from '../../src/permissions/permission-manager';
 import { PrivacyEngine } from '../../src/privacy/privacy-engine';
 import { ProxyManager } from '../../src/network/proxy/proxy-manager';
@@ -11,6 +12,7 @@ describe('Multi-Profile Simultaneous Isolation Integration Tests', () => {
   let profileManager: ProfileManager;
 
   beforeEach(() => {
+    ProfileDatabase.getInstance().clear();
     const manifest = path.join(AppPaths.getProfilesDir(), 'profiles.json');
     if (fs.existsSync(manifest)) {
       fs.unlinkSync(manifest);

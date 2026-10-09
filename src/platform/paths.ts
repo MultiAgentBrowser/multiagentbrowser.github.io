@@ -59,7 +59,36 @@ export class AppPaths {
     if (!fs.existsSync(profileDir)) {
       fs.mkdirSync(profileDir, { recursive: true });
     }
+
+    // Ensure completely separate profile storage subdirectories
+    const subdirs = [
+      'cookies',
+      'cache',
+      'local-storage',
+      'indexed-db',
+      'session',
+      'preferences',
+      'downloads',
+    ];
+    for (const sub of subdirs) {
+      const subPath = path.join(profileDir, sub);
+      if (!fs.existsSync(subPath)) {
+        fs.mkdirSync(subPath, { recursive: true });
+      }
+    }
+
     return profileDir;
+  }
+
+  /**
+   * Returns path to a specific isolated subdirectory within a profile's directory.
+   */
+  public static getProfileSubdir(
+    profileId: string,
+    subdir: 'cookies' | 'cache' | 'local-storage' | 'indexed-db' | 'session' | 'preferences' | 'downloads'
+  ): string {
+    const profileDir = this.getProfileStorageDir(profileId);
+    return path.join(profileDir, subdir);
   }
 }
 

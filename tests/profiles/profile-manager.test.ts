@@ -1,14 +1,16 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ProfileManager } from '../../src/profiles/profile-manager';
+import { ProfileDatabase } from '../../src/database/profile-database';
+import { ProfileLock } from '../../src/profiles/profile-lock';
 import { AppPaths } from '../../src/platform/paths';
 import fs from 'fs';
-
 import path from 'path';
 
 describe('ProfileManager Lifecycle & Storage Isolation', () => {
   let manager: ProfileManager;
 
   beforeEach(() => {
+    ProfileDatabase.getInstance().clear();
     const manifest = path.join(AppPaths.getProfilesDir(), 'profiles.json');
     if (fs.existsSync(manifest)) {
       fs.unlinkSync(manifest);
@@ -55,6 +57,9 @@ describe('ProfileManager Lifecycle & Storage Isolation', () => {
     const original = manager.createProfile({
       name: 'Original Research',
       privacyLevel: 'strict',
+      os: 'windows',
+      browserType: 'edge',
+      browserVersion: '131.0.2903.86',
       color: '#e11d48',
     });
 
@@ -62,6 +67,9 @@ describe('ProfileManager Lifecycle & Storage Isolation', () => {
     expect(duplicated.id).not.toBe(original.id);
     expect(duplicated.name).toBe('Original Research (Copy)');
     expect(duplicated.privacyLevel).toBe('strict');
+    expect(duplicated.os).toBe('windows');
+    expect(duplicated.browserType).toBe('edge');
+    expect(duplicated.browserVersion).toBe('131.0.2903.86');
     expect(duplicated.color).toBe('#e11d48');
   });
 
@@ -104,5 +112,14 @@ describe('ProfileManager Lifecycle & Storage Isolation', () => {
       'Cannot delete the last remaining profile'
     );
   });
-});
 
+  it('preserves a temporary profile while its separate browser process holds the lock', () => {
+    const temporary = manager.createProfile({ name: 'Running Temporary', isTemporary: true });
+    expect(ProfileLock.acquire(temporary.id)).toBe(true);
+
+    const reloadedManager = new ProfileManager();
+    expect(reloadedManager.getProfile(temporary.id)).toBeDefined();
+
+    ProfileLock.release(temporary.id);
+  });
+});

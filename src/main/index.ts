@@ -6,6 +6,7 @@ import { getPlatformInfo } from '../platform/platform-info';
 import { ViewManager } from '../browser/view-manager';
 import { TabManager } from '../tabs/tab-manager';
 import { ProfileManager } from '../profiles/profile-manager';
+import { ProfileLock } from '../profiles/profile-lock';
 
 // Set secure Chromium command-line switches
 app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling');
@@ -38,7 +39,8 @@ function createMainWindow() {
   });
 
   viewManager = new ViewManager(mainWindow);
-  BrowserWindowManager.setMainWindow(mainWindow);
+  BrowserInstanceManager.setMainWindow(mainWindow);
+  BrowserInstanceManager.setProfileManager(profileManager);
 
   // Wire up viewManager callbacks to TabManager & UI
   viewManager.setCallbacks(
@@ -114,15 +116,11 @@ function createMainWindow() {
 }
 
 import { BrowserWindowManager } from '../browser/window-manager';
+import { BrowserInstanceManager } from '../browser/instance-manager';
 
 function getWindowContext(event: Electron.IpcMainInvokeEvent) {
   const win = BrowserWindow.fromWebContents(event.sender);
-  if (!win) return { viewMgr: viewManager, tabMgr: tabManager, win: mainWindow };
-  const all = BrowserWindowManager.getAllInstances();
-  const match = all.find((inst) => inst.window.id === win.id);
-  if (match) {
-    return { viewMgr: match.viewManager, tabMgr: match.tabManager, win: match.window };
-  }
+  if (win) return { viewMgr: viewManager, tabMgr: tabManager, win };
   return { viewMgr: viewManager, tabMgr: tabManager, win: mainWindow };
 }
 
@@ -221,7 +219,11 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle(IPC_CHANNELS.PROFILE_DELETE, async (_event, { profileId }) => {
-    BrowserWindowManager.stopProfileWindow(profileId);
+    const wasRunning = ProfileLock.isLocked(profileId);
+    const stopped = await BrowserWindowManager.stopProfileWindow(profileId);
+    if (wasRunning && !stopped) {
+      throw new Error(`Could not stop profile before deleting it: ${profileId}`);
+    }
     return profileManager.deleteProfile(profileId);
   });
 
@@ -241,12 +243,9 @@ function registerIpcHandlers() {
     return profileManager.setActiveProfile(profileId);
   });
 
-  // Multi-window profile launcher (Incognition-style)
+  // Launch each profile in its own Chromium app process and user-data directory.
   ipcMain.handle(IPC_CHANNELS.PROFILE_LAUNCH, async (_event, { profileId }) => {
-    const profile = profileManager.getProfile(profileId);
-    if (!profile) throw new Error(`Profile ${profileId} not found`);
-    BrowserWindowManager.launchProfileWindow(profile);
-    return { success: true, profileId };
+    return BrowserInstanceManager.launchProfile(profileId);
   });
 
   ipcMain.handle(IPC_CHANNELS.PROFILE_STOP, async (_event, { profileId }) => {
@@ -325,6 +324,7 @@ function registerIpcHandlers() {
 app.whenReady().then(() => {
   AppPaths.getProfilesDir();
   registerIpcHandlers();
+  BrowserInstanceManager.setProfileManager(profileManager);
   createMainWindow();
 
   app.on('activate', () => {

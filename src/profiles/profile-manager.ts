@@ -76,8 +76,12 @@ export class ProfileManager {
     color: string;
   }): ProfileRecord {
     const now = Date.now();
+    const storagePath = ProfileStorage.ensureProfileDirectory(data.id);
     const profile: ProfileRecord = {
       ...data,
+      storagePath,
+      status: 'stopped',
+      lastUsedAt: null,
       os: data.os || 'mac',
       browserType: data.browserType || 'chrome',
       browserVersion: data.browserVersion || '131.0.6778.86',
@@ -87,12 +91,12 @@ export class ProfileManager {
       updatedAt: now,
     };
 
-    ProfileStorage.ensureProfileDirectory(profile.id);
     this.profiles.set(profile.id, profile);
     return profile;
   }
 
   public createProfile(dto: CreateProfileDTO): ProfileRecord {
+    this.refreshProfiles();
     const id = `profile-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
     const profile = this.createProfileInternal({
       id,
@@ -109,19 +113,22 @@ export class ProfileManager {
       color: dto.color || '#8b5cf6',
     });
 
-    this.persist();
+    this.persist([profile.id]);
     return profile;
   }
 
   public getProfile(profileId: string): ProfileRecord | undefined {
+    this.refreshProfiles();
     return this.profiles.get(profileId);
   }
 
   public listProfiles(): ProfileRecord[] {
+    this.refreshProfiles();
     return Array.from(this.profiles.values());
   }
 
   public getActiveProfile(): ProfileRecord {
+    this.refreshProfiles();
     const active = this.profiles.get(this.activeProfileId);
     if (active) return active;
     const fallback = Array.from(this.profiles.values())[0];
@@ -130,6 +137,7 @@ export class ProfileManager {
   }
 
   public setActiveProfile(profileId: string): boolean {
+    this.refreshProfiles();
     if (this.profiles.has(profileId)) {
       this.activeProfileId = profileId;
       return true;
@@ -138,6 +146,7 @@ export class ProfileManager {
   }
 
   public updateProfile(profileId: string, dto: UpdateProfileDTO): ProfileRecord {
+    this.refreshProfiles();
     const profile = this.profiles.get(profileId);
     if (!profile) {
       throw new Error(`Profile not found: ${profileId}`);
@@ -155,8 +164,21 @@ export class ProfileManager {
     if (dto.color !== undefined) profile.color = dto.color;
     profile.updatedAt = Date.now();
 
-    this.persist();
+    this.persist([profileId]);
     return profile;
+  }
+
+  public updateProfileStatus(profileId: string, status: 'stopped' | 'running' | 'crashed'): void {
+    this.refreshProfiles();
+    const profile = this.profiles.get(profileId);
+    if (profile) {
+      profile.status = status;
+      if (status === 'running') {
+        profile.lastUsedAt = Date.now();
+      }
+      profile.updatedAt = Date.now();
+      this.persist([profileId]);
+    }
   }
 
   public renameProfile(profileId: string, newName: string): ProfileRecord {
@@ -164,6 +186,7 @@ export class ProfileManager {
   }
 
   public duplicateProfile(profileId: string, newName?: string): ProfileRecord {
+    this.refreshProfiles();
     const source = this.profiles.get(profileId);
     if (!source) {
       throw new Error(`Profile not found: ${profileId}`);
@@ -176,11 +199,17 @@ export class ProfileManager {
       privacyLevel: source.privacyLevel,
       webrtcPolicy: source.webrtcPolicy,
       proxy: { ...source.proxy },
+      os: source.os,
+      browserType: source.browserType,
+      browserVersion: source.browserVersion,
+      notes: source.notes,
+      tags: [...source.tags],
       color: source.color,
     });
   }
 
   public deleteProfile(profileId: string): boolean {
+    this.refreshProfiles();
     if (this.profiles.size <= 1) {
       throw new Error('Cannot delete the last remaining profile');
     }
@@ -197,11 +226,12 @@ export class ProfileManager {
       this.activeProfileId = Array.from(this.profiles.values())[0].id;
     }
 
-    this.persist();
+    this.persist([profile.id]);
     return true;
   }
 
   public exportProfile(profileId: string): string {
+    this.refreshProfiles();
     const profile = this.profiles.get(profileId);
     if (!profile) {
       throw new Error(`Profile not found: ${profileId}`);
@@ -235,12 +265,26 @@ export class ProfileManager {
       privacyLevel: importedProfile.privacyLevel,
       webrtcPolicy: importedProfile.webrtcPolicy,
       proxy: importedProfile.proxy,
+      os: importedProfile.os,
+      browserType: importedProfile.browserType,
+      browserVersion: importedProfile.browserVersion,
+      notes: importedProfile.notes,
+      tags: importedProfile.tags,
       color: importedProfile.color,
     });
   }
 
-  private persist(): void {
-    ProfileStorage.saveProfilesManifest(Array.from(this.profiles.values()));
+  private persist(profileIds?: string[]): void {
+    ProfileStorage.saveProfilesManifest(Array.from(this.profiles.values()), profileIds);
+  }
+
+  private refreshProfiles(): void {
+    const loaded = ProfileStorage.loadProfilesManifest();
+    if (loaded.length === 0) return;
+
+    this.profiles = new Map(loaded.map((profile) => [profile.id, profile]));
+    if (!this.profiles.has(this.activeProfileId)) {
+      this.activeProfileId = loaded[0].id;
+    }
   }
 }
-

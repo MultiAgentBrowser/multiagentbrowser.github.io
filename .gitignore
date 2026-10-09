@@ -1,6 +1,7 @@
 node_modules/
 dist/
 release/
+build/chromium/
+build/chromium-runtime/
 .DS_Store
 *.log
-
