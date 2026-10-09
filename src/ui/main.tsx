@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
-import { ShieldCheck } from 'lucide-react';
 import { Profile } from '../security/ipc-contracts';
 import { CloudSyncPanel } from './components/CloudSyncPanel';
 import { ProfileSwitcher } from './components/ProfileSwitcher';
+import appLogo from '../../build/icon.svg';
 import './styles/index.css';
 
 const App: React.FC = () => {
@@ -35,7 +35,7 @@ const App: React.FC = () => {
         <>
           <header className="window-titlebar" style={{ justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#e2e4e9', fontWeight: 650 }}>
-              <ShieldCheck size={19} color="#60a5fa" />
+              <img src={appLogo} alt="" width={24} height={24} />
               Multi Agent
             </div>
           </header>
