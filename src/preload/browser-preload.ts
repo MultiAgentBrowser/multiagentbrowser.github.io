@@ -37,6 +37,12 @@ const browserAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.PROFILE_IMPORT, { jsonContent }),
   setActiveProfile: (profileId: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC_CHANNELS.PROFILE_SET_ACTIVE, { profileId }),
+  launchProfile: (profileId: string): Promise<{ success: boolean; profileId: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROFILE_LAUNCH, { profileId }),
+  stopProfile: (profileId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROFILE_STOP, { profileId }),
+  getRunningProfiles: (): Promise<string[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROFILE_GET_RUNNING),
 
   // Cookie & Storage Management
   getCookies: (profileId: string, url?: string) =>
@@ -83,6 +89,11 @@ const browserAPI = {
     const handler = (_event: Electron.IpcRendererEvent, stats: PrivacyStats) => callback(stats);
     ipcRenderer.on(IPC_CHANNELS.PRIVACY_STATS_UPDATED, handler);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.PRIVACY_STATS_UPDATED, handler);
+  },
+  onRunningProfilesUpdated: (callback: (runningIds: string[]) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, runningIds: string[]) => callback(runningIds);
+    ipcRenderer.on(IPC_CHANNELS.PROFILE_RUNNING_UPDATED, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.PROFILE_RUNNING_UPDATED, handler);
   },
 };
 

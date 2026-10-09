@@ -38,6 +38,7 @@ function createMainWindow() {
   });
 
   viewManager = new ViewManager(mainWindow);
+  BrowserWindowManager.setMainWindow(mainWindow);
 
   // Wire up viewManager callbacks to TabManager & UI
   viewManager.setCallbacks(
@@ -112,10 +113,25 @@ function createMainWindow() {
   });
 }
 
+import { BrowserWindowManager } from '../browser/window-manager';
+
+function getWindowContext(event: Electron.IpcMainInvokeEvent) {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return { viewMgr: viewManager, tabMgr: tabManager, win: mainWindow };
+  const all = BrowserWindowManager.getAllInstances();
+  const match = all.find((inst) => inst.window.id === win.id);
+  if (match) {
+    return { viewMgr: match.viewManager, tabMgr: match.tabManager, win: match.window };
+  }
+  return { viewMgr: viewManager, tabMgr: tabManager, win: mainWindow };
+}
+
 function registerIpcHandlers() {
   // Tab handlers
-  ipcMain.handle(IPC_CHANNELS.TAB_LIST, async () => {
-    return tabManager.getAllTabs().map((t) => ({
+  ipcMain.handle(IPC_CHANNELS.TAB_LIST, async (event) => {
+    const { tabMgr } = getWindowContext(event);
+    if (!tabMgr) return [];
+    return tabMgr.getAllTabs().map((t) => ({
       id: t.id,
       url: t.url,
       title: t.title,
@@ -126,14 +142,15 @@ function registerIpcHandlers() {
     }));
   });
 
-  ipcMain.handle(IPC_CHANNELS.TAB_CREATE, async (_event, { url, profileId }) => {
-    if (!viewManager) throw new Error('View manager not initialized');
+  ipcMain.handle(IPC_CHANNELS.TAB_CREATE, async (event, { url, profileId }) => {
+    const { viewMgr, tabMgr } = getWindowContext(event);
+    if (!viewMgr || !tabMgr) throw new Error('View manager not initialized');
 
     const activeProf = profileManager.getActiveProfile();
     const targetProfileId = profileId || activeProf.id;
-    const newTab = tabManager.createTab({ url, profileId: targetProfileId });
-    const tabView = viewManager.createView(newTab.id, newTab.url, newTab.profileId);
-    viewManager.switchView(newTab.id);
+    const newTab = tabMgr.createTab({ url, profileId: targetProfileId });
+    const tabView = viewMgr.createView(newTab.id, newTab.url, newTab.profileId);
+    viewMgr.switchView(newTab.id);
 
     return {
       id: newTab.id,
@@ -146,42 +163,48 @@ function registerIpcHandlers() {
     };
   });
 
-  ipcMain.handle(IPC_CHANNELS.TAB_CLOSE, async (_event, { tabId }) => {
-    if (!viewManager) return;
-    const result = tabManager.closeTab(tabId);
-    viewManager.closeView(tabId);
-    mainWindow?.webContents.send(IPC_CHANNELS.TAB_CLOSED, tabId);
+  ipcMain.handle(IPC_CHANNELS.TAB_CLOSE, async (event, { tabId }) => {
+    const { viewMgr, tabMgr, win } = getWindowContext(event);
+    if (!viewMgr || !tabMgr) return;
+    const result = tabMgr.closeTab(tabId);
+    viewMgr.closeView(tabId);
+    win?.webContents.send(IPC_CHANNELS.TAB_CLOSED, tabId);
 
     if (result && result.nextActiveTab) {
-      viewManager.switchView(result.nextActiveTab.id);
+      viewMgr.switchView(result.nextActiveTab.id);
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.TAB_SWITCH, async (_event, { tabId }) => {
-    if (!viewManager) return;
-    tabManager.switchTab(tabId);
-    viewManager.switchView(tabId);
+  ipcMain.handle(IPC_CHANNELS.TAB_SWITCH, async (event, { tabId }) => {
+    const { viewMgr, tabMgr } = getWindowContext(event);
+    if (!viewMgr || !tabMgr) return;
+    tabMgr.switchTab(tabId);
+    viewMgr.switchView(tabId);
   });
 
-  ipcMain.handle(IPC_CHANNELS.TAB_NAVIGATE, async (_event, { tabId, url }) => {
-    if (!viewManager) return;
-    tabManager.updateTab(tabId, { url });
-    viewManager.navigateView(tabId, url);
+  ipcMain.handle(IPC_CHANNELS.TAB_NAVIGATE, async (event, { tabId, url }) => {
+    const { viewMgr, tabMgr } = getWindowContext(event);
+    if (!viewMgr || !tabMgr) return;
+    tabMgr.updateTab(tabId, { url });
+    viewMgr.navigateView(tabId, url);
   });
 
-  ipcMain.handle(IPC_CHANNELS.TAB_GO_BACK, async (_event, { tabId }) => {
-    if (!viewManager) return;
-    viewManager.goBack(tabId);
+  ipcMain.handle(IPC_CHANNELS.TAB_GO_BACK, async (event, { tabId }) => {
+    const { viewMgr } = getWindowContext(event);
+    if (!viewMgr) return;
+    viewMgr.goBack(tabId);
   });
 
-  ipcMain.handle(IPC_CHANNELS.TAB_GO_FORWARD, async (_event, { tabId }) => {
-    if (!viewManager) return;
-    viewManager.goForward(tabId);
+  ipcMain.handle(IPC_CHANNELS.TAB_GO_FORWARD, async (event, { tabId }) => {
+    const { viewMgr } = getWindowContext(event);
+    if (!viewMgr) return;
+    viewMgr.goForward(tabId);
   });
 
-  ipcMain.handle(IPC_CHANNELS.TAB_RELOAD, async (_event, { tabId }) => {
-    if (!viewManager) return;
-    viewManager.reload(tabId);
+  ipcMain.handle(IPC_CHANNELS.TAB_RELOAD, async (event, { tabId }) => {
+    const { viewMgr } = getWindowContext(event);
+    if (!viewMgr) return;
+    viewMgr.reload(tabId);
   });
 
   // Profile handlers
@@ -198,6 +221,7 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle(IPC_CHANNELS.PROFILE_DELETE, async (_event, { profileId }) => {
+    BrowserWindowManager.stopProfileWindow(profileId);
     return profileManager.deleteProfile(profileId);
   });
 
@@ -215,6 +239,22 @@ function registerIpcHandlers() {
 
   ipcMain.handle(IPC_CHANNELS.PROFILE_SET_ACTIVE, async (_event, { profileId }) => {
     return profileManager.setActiveProfile(profileId);
+  });
+
+  // Multi-window profile launcher (Incognition-style)
+  ipcMain.handle(IPC_CHANNELS.PROFILE_LAUNCH, async (_event, { profileId }) => {
+    const profile = profileManager.getProfile(profileId);
+    if (!profile) throw new Error(`Profile ${profileId} not found`);
+    BrowserWindowManager.launchProfileWindow(profile);
+    return { success: true, profileId };
+  });
+
+  ipcMain.handle(IPC_CHANNELS.PROFILE_STOP, async (_event, { profileId }) => {
+    return BrowserWindowManager.stopProfileWindow(profileId);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.PROFILE_GET_RUNNING, async () => {
+    return BrowserWindowManager.getRunningProfileIds();
   });
 
   // Cookie & Storage IPC handlers

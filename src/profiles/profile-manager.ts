@@ -68,11 +68,17 @@ export class ProfileManager {
     privacyLevel: 'standard' | 'balanced' | 'strict';
     webrtcPolicy: 'default' | 'default_public_interface_only' | 'disable_non_proxied_udp';
     proxy: any;
+    os?: 'mac' | 'windows';
+    notes?: string;
+    tags?: string[];
     color: string;
   }): ProfileRecord {
     const now = Date.now();
     const profile: ProfileRecord = {
       ...data,
+      os: data.os || 'mac',
+      notes: data.notes || '',
+      tags: data.tags || [],
       createdAt: now,
       updatedAt: now,
     };
@@ -91,6 +97,9 @@ export class ProfileManager {
       privacyLevel: dto.privacyLevel || 'balanced',
       webrtcPolicy: dto.webrtcPolicy || 'default_public_interface_only',
       proxy: dto.proxy || { enabled: false, mode: 'direct', host: '', port: 8080 },
+      os: dto.os || 'mac',
+      notes: dto.notes || '',
+      tags: dto.tags || [],
       color: dto.color || '#8b5cf6',
     });
 
@@ -132,6 +141,9 @@ export class ProfileManager {
     if (dto.privacyLevel !== undefined) profile.privacyLevel = dto.privacyLevel;
     if (dto.webrtcPolicy !== undefined) profile.webrtcPolicy = dto.webrtcPolicy;
     if (dto.proxy !== undefined) profile.proxy = dto.proxy;
+    if (dto.os !== undefined) profile.os = dto.os;
+    if (dto.notes !== undefined) profile.notes = dto.notes;
+    if (dto.tags !== undefined) profile.tags = dto.tags;
     if (dto.color !== undefined) profile.color = dto.color;
     profile.updatedAt = Date.now();
 

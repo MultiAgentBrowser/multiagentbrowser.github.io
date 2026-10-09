@@ -20,6 +20,9 @@ export const ProfileRecordSchema = z.object({
     host: '',
     port: 8080,
   }),
+  os: z.enum(['mac', 'windows']).default('mac'),
+  notes: z.string().default(''),
+  tags: z.array(z.string()).default([]),
   color: z.string().default('#3b82f6'),
   createdAt: z.number(),
   updatedAt: z.number(),
@@ -41,6 +44,9 @@ export interface CreateProfileDTO {
   privacyLevel?: PrivacyLevel;
   webrtcPolicy?: WebRTCPolicy;
   proxy?: ProxyConfig;
+  os?: 'mac' | 'windows';
+  notes?: string;
+  tags?: string[];
   color?: string;
 }
 
@@ -49,6 +55,9 @@ export interface UpdateProfileDTO {
   privacyLevel?: PrivacyLevel;
   webrtcPolicy?: WebRTCPolicy;
   proxy?: ProxyConfig;
+  os?: 'mac' | 'windows';
+  notes?: string;
+  tags?: string[];
   color?: string;
 }
 

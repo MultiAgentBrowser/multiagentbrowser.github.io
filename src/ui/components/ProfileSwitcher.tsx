@@ -1,17 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   User,
   Plus,
+  Play,
+  Square,
   Trash2,
   Copy,
   Download,
   Upload,
-  Check,
+  Search,
+  CheckCircle2,
   X,
   Shield,
-  Zap,
+  Radio,
+  Globe,
+  Settings,
+  Apple,
+  Monitor,
+  Wifi,
+  ExternalLink,
+  Edit2,
+  Loader2,
 } from 'lucide-react';
-import { Profile } from '../../security/ipc-contracts';
+import { Profile, ProxyConfig } from '../../security/ipc-contracts';
 
 interface ProfileSwitcherProps {
   isOpen: boolean;
@@ -30,36 +41,192 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   onSelectProfile,
   onRefreshProfiles,
 }) => {
-  const [newProfileName, setNewProfileName] = useState('');
-  const [newProfilePrivacy, setNewProfilePrivacy] = useState<'standard' | 'balanced' | 'strict'>('balanced');
+  // Navigation & filtering state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterOS, setFilterOS] = useState<'all' | 'mac' | 'windows'>('all');
+  const [runningProfileIds, setRunningProfileIds] = useState<string[]>([]);
+
+  // Creation & Editing modal state
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
+
+  // Form fields
+  const [name, setName] = useState('');
+  const [os, setOs] = useState<'mac' | 'windows'>('mac');
+  const [color, setColor] = useState('#3b82f6');
+  const [notes, setNotes] = useState('');
+  const [privacyLevel, setPrivacyLevel] = useState<'standard' | 'balanced' | 'strict'>('balanced');
+  const [webrtcPolicy, setWebrtcPolicy] = useState<'default' | 'default_public_interface_only' | 'disable_non_proxied_udp'>('default_public_interface_only');
   const [isTemporary, setIsTemporary] = useState(false);
-  const [importJson, setImportJson] = useState('');
+
+  // Proxy form fields
+  const [proxyEnabled, setProxyEnabled] = useState(false);
+  const [proxyMode, setProxyMode] = useState<'direct' | 'http' | 'https' | 'socks5'>('socks5');
+  const [proxyHost, setProxyHost] = useState('');
+  const [proxyPort, setProxyPort] = useState<number>(9050);
+  const [proxyUsername, setProxyUsername] = useState('');
+  const [proxyPassword, setProxyPassword] = useState('');
+
+  // Proxy test state
+  const [testingProxy, setTestingProxy] = useState(false);
+  const [proxyTestResult, setProxyTestResult] = useState<{ success: boolean; latencyMs?: number; error?: string } | null>(null);
+
+  // Import JSON drawer
   const [showImport, setShowImport] = useState(false);
+  const [importJson, setImportJson] = useState('');
+
+  // Fetch running profiles
+  useEffect(() => {
+    if (window.browserAPI && (window.browserAPI as any).getRunningProfiles) {
+      (window.browserAPI as any).getRunningProfiles().then((running: string[]) => {
+        setRunningProfileIds(running || []);
+      });
+
+      const unsub = (window.browserAPI as any).onRunningProfilesUpdated?.((running: string[]) => {
+        setRunningProfileIds(running || []);
+      });
+
+      return () => {
+        if (unsub) unsub();
+      };
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newProfileName.trim() || !window.browserAPI) return;
+  const filteredProfiles = profiles.filter((p) => {
+    const matchesQuery = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p as any).notes?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.proxy.host.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesOS = filterOS === 'all' || (p as any).os === filterOS;
+    return matchesQuery && matchesOS;
+  });
 
-    await window.browserAPI.createProfile({
-      name: newProfileName.trim(),
-      privacyLevel: newProfilePrivacy,
-      isTemporary,
-      color: isTemporary ? '#ef4444' : '#3b82f6',
-    });
+  const handleLaunch = async (profileId: string) => {
+    if (window.browserAPI && (window.browserAPI as any).launchProfile) {
+      await (window.browserAPI as any).launchProfile(profileId);
+      const running = await (window.browserAPI as any).getRunningProfiles();
+      setRunningProfileIds(running);
+    }
+  };
 
-    setNewProfileName('');
+  const handleStop = async (profileId: string) => {
+    if (window.browserAPI && (window.browserAPI as any).stopProfile) {
+      await (window.browserAPI as any).stopProfile(profileId);
+      const running = await (window.browserAPI as any).getRunningProfiles();
+      setRunningProfileIds(running);
+    }
+  };
+
+  const handleOpenCreate = () => {
+    setEditingProfileId(null);
+    setName(`Profile ${profiles.length + 1}`);
+    setOs('mac');
+    setColor('#3b82f6');
+    setNotes('');
+    setPrivacyLevel('balanced');
+    setWebrtcPolicy('default_public_interface_only');
     setIsTemporary(false);
+    setProxyEnabled(false);
+    setProxyMode('socks5');
+    setProxyHost('');
+    setProxyPort(9050);
+    setProxyUsername('');
+    setProxyPassword('');
+    setProxyTestResult(null);
+    setIsCreateOpen(true);
+  };
+
+  const handleOpenEdit = (p: Profile) => {
+    setEditingProfileId(p.id);
+    setName(p.name);
+    setOs((p as any).os || 'mac');
+    setColor(p.color || '#3b82f6');
+    setNotes((p as any).notes || '');
+    setPrivacyLevel(p.privacyLevel);
+    setWebrtcPolicy(p.webrtcPolicy);
+    setIsTemporary(p.isTemporary);
+    setProxyEnabled(p.proxy.enabled);
+    setProxyMode(p.proxy.mode);
+    setProxyHost(p.proxy.host);
+    setProxyPort(p.proxy.port);
+    setProxyUsername(p.proxy.username || '');
+    setProxyPassword(p.proxy.password || '');
+    setProxyTestResult(null);
+    setIsCreateOpen(true);
+  };
+
+  const handleSaveProfile = async (andLaunch: boolean = false) => {
+    if (!name.trim() || !window.browserAPI) return;
+
+    const proxyData: ProxyConfig = {
+      enabled: proxyEnabled,
+      mode: proxyEnabled ? proxyMode : 'direct',
+      host: proxyHost.trim(),
+      port: Number(proxyPort) || 8080,
+      username: proxyUsername ? proxyUsername.trim() : undefined,
+      password: proxyPassword ? proxyPassword.trim() : undefined,
+    };
+
+    if (editingProfileId) {
+      await window.browserAPI.updateProfile(editingProfileId, {
+        name: name.trim(),
+        privacyLevel,
+        webrtcPolicy,
+        proxy: proxyData,
+        os,
+        notes,
+        color,
+      });
+      if (andLaunch) {
+        await handleLaunch(editingProfileId);
+      }
+    } else {
+      const created = await window.browserAPI.createProfile({
+        name: name.trim(),
+        isTemporary,
+        privacyLevel,
+        webrtcPolicy,
+        proxy: proxyData,
+        os,
+        notes,
+        color,
+      } as any);
+
+      if (andLaunch && created && (window.browserAPI as any).launchProfile) {
+        await handleLaunch(created.id);
+      }
+    }
+
+    setIsCreateOpen(false);
     onRefreshProfiles();
+  };
+
+  const handleTestProxy = async () => {
+    if (!proxyHost.trim() || !window.browserAPI) return;
+    setTestingProxy(true);
+    setProxyTestResult(null);
+    try {
+      const result = await window.browserAPI.testProxy({
+        enabled: true,
+        mode: proxyMode,
+        host: proxyHost.trim(),
+        port: Number(proxyPort) || 8080,
+      });
+      setProxyTestResult(result);
+    } catch (err: any) {
+      setProxyTestResult({ success: false, error: err.message });
+    } finally {
+      setTestingProxy(false);
+    }
   };
 
   const handleDelete = async (profileId: string) => {
     if (profiles.length <= 1) {
-      alert('Cannot delete the only remaining profile.');
+      alert('Cannot delete the last remaining profile.');
       return;
     }
-    if (confirm('Delete this profile and wipe all its stored data?')) {
+    if (confirm('Delete this profile permanently and wipe all stored cookies & partition data?')) {
       await window.browserAPI.deleteProfile(profileId);
       onRefreshProfiles();
     }
@@ -99,275 +266,908 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(0,0,0,0.65)',
-        backdropFilter: 'blur(4px)',
+        backgroundColor: 'rgba(0,0,0,0.75)',
+        backdropFilter: 'blur(6px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 1000,
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
       onClick={onClose}
     >
       <div
         style={{
-          width: 520,
-          backgroundColor: '#1a1c23',
-          border: '1px solid #2f3444',
-          borderRadius: 12,
-          boxShadow: '0 12px 32px rgba(0,0,0,0.6)',
+          width: '92vw',
+          maxWidth: 1050,
+          height: '85vh',
+          backgroundColor: '#16181f',
+          border: '1px solid #2d3142',
+          borderRadius: 14,
+          boxShadow: '0 24px 60px rgba(0,0,0,0.8)',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          maxHeight: '85vh',
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
+        {/* Top Header Bar */}
         <div
           style={{
-            padding: '16px 20px',
-            borderBottom: '1px solid #282a36',
+            padding: '16px 24px',
+            borderBottom: '1px solid #272a38',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            background: 'linear-gradient(180deg, #1d202b 0%, #16181f 100%)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <User size={20} color="#3b82f6" />
-            <h3 style={{ fontSize: 16, fontWeight: 600, color: '#ffffff' }}>
-              Browser Profiles
-            </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 10,
+                backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: '1px solid rgba(59, 130, 246, 0.3)',
+              }}
+            >
+              <User size={22} color="#3b82f6" />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <h2 style={{ fontSize: 18, fontWeight: 700, color: '#ffffff', margin: 0 }}>
+                  Profile Manager
+                </h2>
+                <span
+                  style={{
+                    fontSize: 11,
+                    backgroundColor: '#25293a',
+                    color: '#9ba1b0',
+                    padding: '2px 8px',
+                    borderRadius: 10,
+                  }}
+                >
+                  {profiles.length} Total • {runningProfileIds.length} Running
+                </span>
+              </div>
+              <p style={{ fontSize: 12, color: '#8b92a2', margin: '2px 0 0 0' }}>
+                Isolated multi-profile Chromium instances with independent cookies, cache, and proxies.
+              </p>
+            </div>
           </div>
-          <button
-            onClick={onClose}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              onClick={() => setShowImport(!showImport)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 14px',
+                backgroundColor: '#222533',
+                border: '1px solid #33384c',
+                borderRadius: 8,
+                color: '#e2e4e9',
+                fontSize: 12,
+                cursor: 'pointer',
+              }}
+            >
+              <Upload size={14} />
+              Import
+            </button>
+
+            <button
+              onClick={handleOpenCreate}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 18px',
+                backgroundColor: '#3b82f6',
+                border: 'none',
+                borderRadius: 8,
+                color: '#ffffff',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
+              }}
+            >
+              <Plus size={16} />
+              New Profile
+            </button>
+
+            <button
+              onClick={onClose}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#9ba1b0',
+                cursor: 'pointer',
+                padding: 4,
+                marginLeft: 6,
+              }}
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+
+        {/* Filter and Search Bar */}
+        <div
+          style={{
+            padding: '12px 24px',
+            borderBottom: '1px solid #232636',
+            backgroundColor: '#191b24',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+          }}
+        >
+          <div
             style={{
-              background: 'none',
-              border: 'none',
-              color: '#9ba1b0',
-              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              backgroundColor: '#12131b',
+              border: '1px solid #2d3144',
+              borderRadius: 8,
+              padding: '0 12px',
+              height: 36,
+              width: 320,
+              gap: 8,
             }}
           >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Profile List */}
-        <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ fontSize: 12, color: '#8b92a2', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            Existing Profiles
+            <Search size={15} color="#8b92a2" />
+            <input
+              type="text"
+              placeholder="Search profiles by name, notes, or proxy..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                flex: 1,
+                background: 'transparent',
+                border: 'none',
+                color: '#ffffff',
+                fontSize: 13,
+                outline: 'none',
+              }}
+            />
           </div>
 
-          {profiles.map((p) => {
-            const isActive = p.id === activeProfileId;
-            return (
-              <div
-                key={p.id}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 12, color: '#8b92a2', marginRight: 4 }}>Platform:</span>
+            {(['all', 'mac', 'windows'] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setFilterOS(mode)}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '10px 14px',
-                  backgroundColor: isActive ? '#242838' : '#14151b',
-                  border: `1px solid ${isActive ? '#3b82f6' : '#282b37'}`,
-                  borderRadius: 8,
+                  padding: '5px 12px',
+                  borderRadius: 6,
+                  border: 'none',
+                  fontSize: 12,
+                  textTransform: 'capitalize',
                   cursor: 'pointer',
-                  transition: 'all 0.15s ease',
+                  backgroundColor: filterOS === mode ? '#3b82f6' : '#222533',
+                  color: filterOS === mode ? '#ffffff' : '#9ba1b0',
                 }}
-                onClick={() => onSelectProfile(p.id)}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div
-                    style={{
-                      width: 12,
-                      height: 12,
-                      borderRadius: '50%',
-                      backgroundColor: p.color || '#3b82f6',
-                    }}
-                  />
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 14, fontWeight: 500, color: '#ffffff' }}>
-                        {p.name}
-                      </span>
-                      {isActive && (
-                        <span
-                          style={{
-                            fontSize: 10,
-                            backgroundColor: '#3b82f6',
-                            color: '#fff',
-                            padding: '1px 6px',
-                            borderRadius: 4,
-                          }}
-                        >
-                          ACTIVE
-                        </span>
-                      )}
-                      {p.isTemporary && (
-                        <span
-                          style={{
-                            fontSize: 10,
-                            backgroundColor: '#ef4444',
-                            color: '#fff',
-                            padding: '1px 6px',
-                            borderRadius: 4,
-                          }}
-                        >
-                          TEMPORARY
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 11, color: '#8b92a2', marginTop: 2 }}>
-                      Privacy: {p.privacyLevel.toUpperCase()} • WebRTC: {p.webrtcPolicy}
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 6 }} onClick={(e) => e.stopPropagation()}>
-                  <button
-                    onClick={() => handleDuplicate(p.id)}
-                    style={{ background: 'none', border: 'none', color: '#9ba1b0', cursor: 'pointer', padding: 4 }}
-                    title="Duplicate Profile"
-                  >
-                    <Copy size={15} />
-                  </button>
-                  <button
-                    onClick={() => handleExport(p.id)}
-                    style={{ background: 'none', border: 'none', color: '#9ba1b0', cursor: 'pointer', padding: 4 }}
-                    title="Export Profile"
-                  >
-                    <Download size={15} />
-                  </button>
-                  {profiles.length > 1 && (
-                    <button
-                      onClick={() => handleDelete(p.id)}
-                      style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4 }}
-                      title="Delete Profile"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                {mode === 'all' ? 'All OS' : mode === 'mac' ? 'macOS' : 'Windows'}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Create Profile Section */}
-        <div style={{ padding: '16px 20px', borderTop: '1px solid #282a36', backgroundColor: '#16171e' }}>
-          <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                type="text"
-                placeholder="New profile name (e.g. Work, Research)..."
-                value={newProfileName}
-                onChange={(e) => setNewProfileName(e.target.value)}
+        {/* Import JSON drawer */}
+        {showImport && (
+          <div style={{ padding: '12px 24px', backgroundColor: '#1d202d', borderBottom: '1px solid #2f3448' }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <textarea
+                placeholder="Paste exported profile JSON configuration..."
+                value={importJson}
+                onChange={(e) => setImportJson(e.target.value)}
+                rows={2}
                 style={{
                   flex: 1,
-                  padding: '8px 12px',
-                  backgroundColor: '#121316',
-                  border: '1px solid #2f3444',
+                  backgroundColor: '#13141c',
+                  border: '1px solid #33384c',
                   borderRadius: 6,
                   color: '#ffffff',
-                  fontSize: 13,
-                  outline: 'none',
+                  padding: 8,
+                  fontSize: 11,
+                  fontFamily: 'monospace',
                 }}
               />
-              <select
-                value={newProfilePrivacy}
-                onChange={(e: any) => setNewProfilePrivacy(e.target.value)}
-                style={{
-                  padding: '8px 10px',
-                  backgroundColor: '#121316',
-                  border: '1px solid #2f3444',
-                  borderRadius: 6,
-                  color: '#ffffff',
-                  fontSize: 12,
-                }}
-              >
-                <option value="standard">Standard</option>
-                <option value="balanced">Balanced</option>
-                <option value="strict">Strict</option>
-              </select>
               <button
-                type="submit"
+                onClick={handleImportSubmit}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '8px 14px',
-                  backgroundColor: '#3b82f6',
+                  padding: '8px 16px',
+                  backgroundColor: '#10b981',
                   border: 'none',
                   borderRadius: 6,
-                  color: '#ffffff',
-                  fontWeight: 500,
-                  fontSize: 13,
+                  color: '#fff',
+                  fontSize: 12,
+                  fontWeight: 600,
                   cursor: 'pointer',
+                  whiteSpace: 'nowrap',
                 }}
               >
-                <Plus size={15} />
-                Create
+                Import Now
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Profiles Table View */}
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid #232636', color: '#8b92a2', fontSize: 11, textTransform: 'uppercase' }}>
+                <th style={{ padding: '12px 24px' }}>Profile Name</th>
+                <th style={{ padding: '12px 16px' }}>Status</th>
+                <th style={{ padding: '12px 16px' }}>Proxy</th>
+                <th style={{ padding: '12px 16px' }}>Privacy & WebRTC</th>
+                <th style={{ padding: '12px 16px' }}>OS</th>
+                <th style={{ padding: '12px 24px', textAlign: 'right' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredProfiles.map((p) => {
+                const isRunning = runningProfileIds.includes(p.id);
+                const hasProxy = p.proxy.enabled && p.proxy.host;
+                const profileOs = (p as any).os || 'mac';
+
+                return (
+                  <tr
+                    key={p.id}
+                    style={{
+                      borderBottom: '1px solid #20222f',
+                      transition: 'background 0.15s ease',
+                      backgroundColor: isRunning ? 'rgba(16, 185, 129, 0.04)' : 'transparent',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = isRunning ? 'rgba(16, 185, 129, 0.08)' : '#191b26')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = isRunning ? 'rgba(16, 185, 129, 0.04)' : 'transparent')}
+                  >
+                    {/* Name & Tag */}
+                    <td style={{ padding: '14px 24px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div
+                          style={{
+                            width: 12,
+                            height: 12,
+                            borderRadius: '50%',
+                            backgroundColor: p.color || '#3b82f6',
+                            flexShrink: 0,
+                          }}
+                        />
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontWeight: 600, color: '#ffffff', fontSize: 14 }}>
+                              {p.name}
+                            </span>
+                            {p.isTemporary && (
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  backgroundColor: '#ef4444',
+                                  color: '#fff',
+                                  padding: '1px 5px',
+                                  borderRadius: 4,
+                                }}
+                              >
+                                TEMP
+                              </span>
+                            )}
+                          </div>
+                          {(p as any).notes && (
+                            <div style={{ fontSize: 11, color: '#8b92a2', marginTop: 2 }}>
+                              {(p as any).notes}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Status (Running vs Ready) */}
+                    <td style={{ padding: '14px 16px' }}>
+                      {isRunning ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span
+                            style={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: '50%',
+                              backgroundColor: '#10b981',
+                              boxShadow: '0 0 8px #10b981',
+                            }}
+                          />
+                          <span style={{ color: '#10b981', fontWeight: 600, fontSize: 12 }}>
+                            RUNNING
+                          </span>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#6b7280' }} />
+                          <span style={{ color: '#8b92a2', fontSize: 12 }}>READY</span>
+                        </div>
+                      )}
+                    </td>
+
+                    {/* Proxy */}
+                    <td style={{ padding: '14px 16px' }}>
+                      {hasProxy ? (
+                        <div>
+                          <span
+                            style={{
+                              fontSize: 11,
+                              backgroundColor: '#26293a',
+                              color: '#34d399',
+                              padding: '2px 6px',
+                              borderRadius: 4,
+                              fontWeight: 500,
+                            }}
+                          >
+                            {p.proxy.mode.toUpperCase()}
+                          </span>
+                          <span style={{ marginLeft: 6, color: '#e2e4e9', fontSize: 12 }}>
+                            {p.proxy.host}:{p.proxy.port}
+                          </span>
+                        </div>
+                      ) : (
+                        <span style={{ color: '#8b92a2', fontSize: 12 }}>Direct (No Proxy)</span>
+                      )}
+                    </td>
+
+                    {/* Privacy & WebRTC */}
+                    <td style={{ padding: '14px 16px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span style={{ fontSize: 12, color: '#e2e4e9' }}>
+                          Level: <strong style={{ color: '#38bdf8' }}>{p.privacyLevel.toUpperCase()}</strong>
+                        </span>
+                        <span style={{ fontSize: 11, color: '#8b92a2' }}>
+                          WebRTC: {p.webrtcPolicy === 'disable_non_proxied_udp' ? 'Strict UDP Kill' : 'Prevent LAN leak'}
+                        </span>
+                      </div>
+                    </td>
+
+                    {/* OS Platform */}
+                    <td style={{ padding: '14px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#9ba1b0', fontSize: 12 }}>
+                        {profileOs === 'windows' ? <Monitor size={15} /> : <Apple size={15} />}
+                        <span>{profileOs === 'windows' ? 'Windows' : 'macOS'}</span>
+                      </div>
+                    </td>
+
+                    {/* Actions */}
+                    <td style={{ padding: '14px 24px', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                        {isRunning ? (
+                          <button
+                            onClick={() => handleStop(p.id)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              padding: '6px 14px',
+                              backgroundColor: '#ef4444',
+                              border: 'none',
+                              borderRadius: 6,
+                              color: '#fff',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <Square size={13} fill="#fff" />
+                            Stop
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleLaunch(p.id)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              padding: '6px 16px',
+                              backgroundColor: '#10b981',
+                              border: 'none',
+                              borderRadius: 6,
+                              color: '#fff',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)',
+                            }}
+                          >
+                            <Play size={13} fill="#fff" />
+                            Launch
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => handleOpenEdit(p)}
+                          style={{
+                            background: '#232634',
+                            border: '1px solid #32374b',
+                            borderRadius: 6,
+                            color: '#9ba1b0',
+                            padding: 6,
+                            cursor: 'pointer',
+                          }}
+                          title="Edit Profile"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+
+                        <button
+                          onClick={() => handleDuplicate(p.id)}
+                          style={{
+                            background: '#232634',
+                            border: '1px solid #32374b',
+                            borderRadius: 6,
+                            color: '#9ba1b0',
+                            padding: 6,
+                            cursor: 'pointer',
+                          }}
+                          title="Clone Profile"
+                        >
+                          <Copy size={14} />
+                        </button>
+
+                        <button
+                          onClick={() => handleExport(p.id)}
+                          style={{
+                            background: '#232634',
+                            border: '1px solid #32374b',
+                            borderRadius: 6,
+                            color: '#9ba1b0',
+                            padding: 6,
+                            cursor: 'pointer',
+                          }}
+                          title="Export Profile"
+                        >
+                          <Download size={14} />
+                        </button>
+
+                        {profiles.length > 1 && (
+                          <button
+                            onClick={() => handleDelete(p.id)}
+                            style={{
+                              background: '#232634',
+                              border: '1px solid #32374b',
+                              borderRadius: 6,
+                              color: '#ef4444',
+                              padding: 6,
+                              cursor: 'pointer',
+                            }}
+                            title="Delete Profile"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Advanced Create / Edit Profile Modal */}
+      {isCreateOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.85)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1100,
+          }}
+          onClick={() => setIsCreateOpen(false)}
+        >
+          <div
+            style={{
+              width: 580,
+              backgroundColor: '#1a1c24',
+              border: '1px solid #33384c',
+              borderRadius: 14,
+              boxShadow: '0 20px 50px rgba(0,0,0,0.9)',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              maxHeight: '90vh',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Title */}
+            <div
+              style={{
+                padding: '16px 22px',
+                borderBottom: '1px solid #282c3d',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: '#ffffff', margin: 0 }}>
+                {editingProfileId ? 'Edit Profile Configuration' : 'Create New Profile'}
+              </h3>
+              <button
+                onClick={() => setIsCreateOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#9ba1b0', cursor: 'pointer' }}
+              >
+                <X size={18} />
               </button>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#9ba1b0', cursor: 'pointer' }}>
+            {/* Modal Body */}
+            <div style={{ padding: '20px 22px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Profile Name & OS */}
+              <div style={{ display: 'flex', gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
+                    Profile Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. Amazon Store 1, Client Alpha"
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      backgroundColor: '#12131b',
+                      border: '1px solid #2f3448',
+                      borderRadius: 8,
+                      color: '#ffffff',
+                      fontSize: 13,
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                <div style={{ width: 140 }}>
+                  <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
+                    Emulated OS
+                  </label>
+                  <select
+                    value={os}
+                    onChange={(e: any) => setOs(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 10px',
+                      backgroundColor: '#12131b',
+                      border: '1px solid #2f3448',
+                      borderRadius: 8,
+                      color: '#ffffff',
+                      fontSize: 13,
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <option value="mac">macOS</option>
+                    <option value="windows">Windows</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
+                  Notes / Tags
+                </label>
+                <input
+                  type="text"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Optional description or account email..."
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    backgroundColor: '#12131b',
+                    border: '1px solid #2f3448',
+                    borderRadius: 8,
+                    color: '#ffffff',
+                    fontSize: 12,
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              {/* Proxy Section */}
+              <div
+                style={{
+                  padding: 14,
+                  backgroundColor: '#14161f',
+                  border: '1px solid #292d3e',
+                  borderRadius: 10,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: '#ffffff', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={proxyEnabled}
+                      onChange={(e) => setProxyEnabled(e.target.checked)}
+                    />
+                    Enable Dedicated Proxy
+                  </label>
+
+                  {proxyEnabled && (
+                    <button
+                      type="button"
+                      onClick={handleTestProxy}
+                      disabled={testingProxy || !proxyHost.trim()}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '4px 10px',
+                        backgroundColor: '#262a3c',
+                        border: '1px solid #383e58',
+                        borderRadius: 6,
+                        color: '#38bdf8',
+                        fontSize: 11,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {testingProxy ? <Loader2 size={12} className="animate-spin" /> : <Wifi size={12} />}
+                      Check Proxy
+                    </button>
+                  )}
+                </div>
+
+                {proxyEnabled && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <select
+                        value={proxyMode}
+                        onChange={(e: any) => setProxyMode(e.target.value)}
+                        style={{
+                          width: 110,
+                          padding: '8px 10px',
+                          backgroundColor: '#0f1017',
+                          border: '1px solid #2f3448',
+                          borderRadius: 6,
+                          color: '#ffffff',
+                          fontSize: 12,
+                        }}
+                      >
+                        <option value="socks5">SOCKS5</option>
+                        <option value="http">HTTP</option>
+                        <option value="https">HTTPS</option>
+                      </select>
+
+                      <input
+                        type="text"
+                        placeholder="Host (IP or domain)"
+                        value={proxyHost}
+                        onChange={(e) => setProxyHost(e.target.value)}
+                        style={{
+                          flex: 1,
+                          padding: '8px 10px',
+                          backgroundColor: '#0f1017',
+                          border: '1px solid #2f3448',
+                          borderRadius: 6,
+                          color: '#ffffff',
+                          fontSize: 12,
+                          outline: 'none',
+                        }}
+                      />
+
+                      <input
+                        type="number"
+                        placeholder="Port"
+                        value={proxyPort}
+                        onChange={(e) => setProxyPort(Number(e.target.value))}
+                        style={{
+                          width: 80,
+                          padding: '8px 10px',
+                          backgroundColor: '#0f1017',
+                          border: '1px solid #2f3448',
+                          borderRadius: 6,
+                          color: '#ffffff',
+                          fontSize: 12,
+                          outline: 'none',
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <input
+                        type="text"
+                        placeholder="Username (optional)"
+                        value={proxyUsername}
+                        onChange={(e) => setProxyUsername(e.target.value)}
+                        style={{
+                          flex: 1,
+                          padding: '7px 10px',
+                          backgroundColor: '#0f1017',
+                          border: '1px solid #2f3448',
+                          borderRadius: 6,
+                          color: '#ffffff',
+                          fontSize: 12,
+                          outline: 'none',
+                        }}
+                      />
+                      <input
+                        type="password"
+                        placeholder="Password (optional)"
+                        value={proxyPassword}
+                        onChange={(e) => setProxyPassword(e.target.value)}
+                        style={{
+                          flex: 1,
+                          padding: '7px 10px',
+                          backgroundColor: '#0f1017',
+                          border: '1px solid #2f3448',
+                          borderRadius: 6,
+                          color: '#ffffff',
+                          fontSize: 12,
+                          outline: 'none',
+                        }}
+                      />
+                    </div>
+
+                    {proxyTestResult && (
+                      <div
+                        style={{
+                          fontSize: 11,
+                          padding: '6px 10px',
+                          borderRadius: 6,
+                          backgroundColor: proxyTestResult.success ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                          color: proxyTestResult.success ? '#34d399' : '#f87171',
+                        }}
+                      >
+                        {proxyTestResult.success
+                          ? `✓ Connection successful! Latency: ${proxyTestResult.latencyMs}ms`
+                          : `✗ Connection failed: ${proxyTestResult.error}`}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Privacy & WebRTC Controls */}
+              <div style={{ display: 'flex', gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
+                    Privacy Protection Mode
+                  </label>
+                  <select
+                    value={privacyLevel}
+                    onChange={(e: any) => setPrivacyLevel(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      backgroundColor: '#12131b',
+                      border: '1px solid #2f3448',
+                      borderRadius: 8,
+                      color: '#ffffff',
+                      fontSize: 12,
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <option value="standard">Standard (Fast, Compatible)</option>
+                    <option value="balanced">Balanced Privacy (Recommended)</option>
+                    <option value="strict">Strict Privacy (Maximum Defense)</option>
+                  </select>
+                </div>
+
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
+                    WebRTC IP Protection
+                  </label>
+                  <select
+                    value={webrtcPolicy}
+                    onChange={(e: any) => setWebrtcPolicy(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      backgroundColor: '#12131b',
+                      border: '1px solid #2f3448',
+                      borderRadius: 8,
+                      color: '#ffffff',
+                      fontSize: 12,
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <option value="default_public_interface_only">Prevent LAN IP Leaks</option>
+                    <option value="disable_non_proxied_udp">Disable Non-Proxied UDP</option>
+                    <option value="default">Default Chromium</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Ephemeral checkbox */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#9ba1b0', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={isTemporary}
                   onChange={(e) => setIsTemporary(e.target.checked)}
                 />
-                Temporary Profile (auto-wiped upon closure)
+                Temporary Profile (all cookies & partition data wiped upon close)
               </label>
+            </div>
+
+            {/* Modal Actions */}
+            <div
+              style={{
+                padding: '14px 22px',
+                borderTop: '1px solid #282c3d',
+                backgroundColor: '#151720',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: 10,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setIsCreateOpen(false)}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#232635',
+                  border: '1px solid #33384c',
+                  borderRadius: 8,
+                  color: '#9ba1b0',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
 
               <button
                 type="button"
-                onClick={() => setShowImport(!showImport)}
-                style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}
+                onClick={() => handleSaveProfile(false)}
+                style={{
+                  padding: '8px 18px',
+                  backgroundColor: '#3b82f6',
+                  border: 'none',
+                  borderRadius: 8,
+                  color: '#ffffff',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
               >
-                {showImport ? 'Cancel Import' : 'Import Profile JSON'}
+                {editingProfileId ? 'Save Changes' : 'Create Profile'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSaveProfile(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '8px 18px',
+                  backgroundColor: '#10b981',
+                  border: 'none',
+                  borderRadius: 8,
+                  color: '#ffffff',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                }}
+              >
+                <Play size={13} fill="#fff" />
+                Save & Launch
               </button>
             </div>
-
-            {showImport && (
-              <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <textarea
-                  placeholder="Paste exported profile JSON here..."
-                  value={importJson}
-                  onChange={(e) => setImportJson(e.target.value)}
-                  rows={3}
-                  style={{
-                    width: '100%',
-                    backgroundColor: '#121316',
-                    border: '1px solid #2f3444',
-                    borderRadius: 6,
-                    color: '#ffffff',
-                    padding: 8,
-                    fontSize: 11,
-                    fontFamily: 'monospace',
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={handleImportSubmit}
-                  style={{
-                    alignSelf: 'flex-end',
-                    padding: '6px 12px',
-                    backgroundColor: '#10b981',
-                    border: 'none',
-                    borderRadius: 4,
-                    color: '#ffffff',
-                    fontSize: 12,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Import
-                </button>
-              </div>
-            )}
-          </form>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
-

@@ -32,6 +32,9 @@ export const ProfileSchema = z.object({
     host: '',
     port: 8080,
   }),
+  os: z.enum(['mac', 'windows']).default('mac'),
+  notes: z.string().default(''),
+  tags: z.array(z.string()).default([]),
   color: z.string().default('#3b82f6'),
   createdAt: z.number(),
   updatedAt: z.number(),
@@ -86,6 +89,10 @@ export const IPC_CHANNELS = {
   PROFILE_EXPORT: 'profile:export',
   PROFILE_IMPORT: 'profile:import',
   PROFILE_SET_ACTIVE: 'profile:set-active',
+  PROFILE_LAUNCH: 'profile:launch',
+  PROFILE_STOP: 'profile:stop',
+  PROFILE_GET_RUNNING: 'profile:get-running',
+  PROFILE_RUNNING_UPDATED: 'profile:running-updated',
 
   // Cookies & Storage
   COOKIE_GET: 'cookie:get',
