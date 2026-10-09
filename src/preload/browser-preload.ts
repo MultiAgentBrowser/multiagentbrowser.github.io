@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { TabInfo, Profile, PrivacyStats } from '../security/ipc-contracts';
+import type { Profile } from '../security/ipc-contracts';
 
 const IPC_CHANNELS = {
   // Tabs
@@ -29,6 +29,9 @@ const IPC_CHANNELS = {
   PROFILE_STOP: 'profile:stop',
   PROFILE_GET_RUNNING: 'profile:get-running',
   PROFILE_RUNNING_UPDATED: 'profile:running-updated',
+  PROFILE_SYNC_REPLACE: 'profile:sync-replace',
+  PROFILE_SYNC_CHANGED: 'profile:sync-changed',
+  AUTH_SET_USER: 'auth:set-user',
 
   // Cookies & Storage
   COOKIE_GET: 'cookie:get',
@@ -56,24 +59,6 @@ const IPC_CHANNELS = {
 } as const;
 
 const browserAPI = {
-  // Tab Management
-  createTab: (url?: string, profileId?: string): Promise<TabInfo> =>
-    ipcRenderer.invoke(IPC_CHANNELS.TAB_CREATE, { url, profileId }),
-  closeTab: (tabId: string): Promise<void> =>
-    ipcRenderer.invoke(IPC_CHANNELS.TAB_CLOSE, { tabId }),
-  switchTab: (tabId: string): Promise<void> =>
-    ipcRenderer.invoke(IPC_CHANNELS.TAB_SWITCH, { tabId }),
-  navigateTab: (tabId: string, url: string): Promise<void> =>
-    ipcRenderer.invoke(IPC_CHANNELS.TAB_NAVIGATE, { tabId, url }),
-  goBack: (tabId: string): Promise<void> =>
-    ipcRenderer.invoke(IPC_CHANNELS.TAB_GO_BACK, { tabId }),
-  goForward: (tabId: string): Promise<void> =>
-    ipcRenderer.invoke(IPC_CHANNELS.TAB_GO_FORWARD, { tabId }),
-  reloadTab: (tabId: string): Promise<void> =>
-    ipcRenderer.invoke(IPC_CHANNELS.TAB_RELOAD, { tabId }),
-  listTabs: (): Promise<TabInfo[]> =>
-    ipcRenderer.invoke(IPC_CHANNELS.TAB_LIST),
-
   // Profile Management
   listProfiles: (): Promise<Profile[]> =>
     ipcRenderer.invoke(IPC_CHANNELS.PROFILE_LIST),
@@ -97,6 +82,10 @@ const browserAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.PROFILE_STOP, { profileId }),
   getRunningProfiles: (): Promise<string[]> =>
     ipcRenderer.invoke(IPC_CHANNELS.PROFILE_GET_RUNNING),
+  replaceCloudProfiles: (profiles: Profile[]): Promise<Profile[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROFILE_SYNC_REPLACE, profiles),
+  setAuthenticatedUser: (credentials: { idToken: string; apiKey: string } | null): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.AUTH_SET_USER, credentials),
 
   // Cookie & Storage Management
   getCookies: (profileId: string, url?: string) =>
@@ -120,38 +109,16 @@ const browserAPI = {
   resetPermissions: (profileId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.PERMISSION_RESET, { profileId }),
 
-  // Privacy & Stats
-  getPrivacyStats: (tabId?: string): Promise<PrivacyStats> =>
-    ipcRenderer.invoke(IPC_CHANNELS.PRIVACY_GET_STATS, { tabId }),
-
-  // Viewport Visibility
-  setWebviewVisibility: (visible: boolean): Promise<void> =>
-    ipcRenderer.invoke(IPC_CHANNELS.VIEW_SET_VISIBILITY, { visible }),
-
-  // DevTools
-  toggleDevTools: (tabId?: string): Promise<void> =>
-    ipcRenderer.invoke(IPC_CHANNELS.DEVTOOLS_TOGGLE, { tabId }),
-
   // Event Listeners
-  onTabUpdated: (callback: (tab: TabInfo) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, tab: TabInfo) => callback(tab);
-    ipcRenderer.on(IPC_CHANNELS.TAB_UPDATED, handler);
-    return () => ipcRenderer.removeListener(IPC_CHANNELS.TAB_UPDATED, handler);
-  },
-  onTabClosed: (callback: (tabId: string) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, tabId: string) => callback(tabId);
-    ipcRenderer.on(IPC_CHANNELS.TAB_CLOSED, handler);
-    return () => ipcRenderer.removeListener(IPC_CHANNELS.TAB_CLOSED, handler);
-  },
-  onPrivacyStatsUpdated: (callback: (stats: PrivacyStats) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, stats: PrivacyStats) => callback(stats);
-    ipcRenderer.on(IPC_CHANNELS.PRIVACY_STATS_UPDATED, handler);
-    return () => ipcRenderer.removeListener(IPC_CHANNELS.PRIVACY_STATS_UPDATED, handler);
-  },
   onRunningProfilesUpdated: (callback: (runningIds: string[]) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, runningIds: string[]) => callback(runningIds);
     ipcRenderer.on(IPC_CHANNELS.PROFILE_RUNNING_UPDATED, handler);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.PROFILE_RUNNING_UPDATED, handler);
+  },
+  onProfileSyncChanged: (callback: (change: { type: 'upsert' | 'delete'; profileId: string }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, change: { type: 'upsert' | 'delete'; profileId: string }) => callback(change);
+    ipcRenderer.on(IPC_CHANNELS.PROFILE_SYNC_CHANGED, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.PROFILE_SYNC_CHANGED, handler);
   },
 };
 

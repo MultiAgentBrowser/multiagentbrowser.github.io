@@ -5,6 +5,7 @@ import { resolve } from 'path';
 export default defineConfig({
   plugins: [react()],
   root: resolve(__dirname, 'src/ui'),
+  envDir: resolve(__dirname),
   base: './',
   build: {
     outDir: resolve(__dirname, 'dist/ui'),
@@ -19,4 +20,3 @@ export default defineConfig({
     port: 5173,
   },
 });
-

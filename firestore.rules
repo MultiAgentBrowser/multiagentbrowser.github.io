@@ -1,0 +1,176 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users/{userId}/profiles
+// Document ID: ProfileRecord.id, 1-128 ASCII letters, digits, "_" or "-"
+// Fields (all required, except no optional document fields):
+//   - id: string, equal to document ID (immutable)
+//   - name: string, 1-64 characters
+//   - isTemporary: boolean, always false (immutable)
+//   - privacyLevel: "standard" | "balanced" | "strict"
+//   - webrtcPolicy: "default" | "default_public_interface_only" |
+//     "disable_non_proxied_udp"
+//   - proxy: map with exactly enabled, mode, host, port; credentials excluded
+//   - os: "mac" | "windows"
+//   - browserType: "chrome" | "edge" | "brave"
+//   - browserVersion: string, 1-64 characters
+//   - notes: string, 0-10000 characters
+//   - tags: list, at most 20 strings, each at most 64 characters
+//   - color: six-digit hex color
+//   - createdAt: non-negative epoch milliseconds, immutable
+//   - updatedAt: epoch milliseconds, monotonic on update
+//
+// Local paths, browser runtime state, proxy credentials, browsing history,
+// cookies, and Chrome profile contents are not stored in these documents.
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasOnlyAllowedFields(data) {
+      return data.keys().hasOnly([
+        'id',
+        'name',
+        'isTemporary',
+        'privacyLevel',
+        'webrtcPolicy',
+        'proxy',
+        'os',
+        'browserType',
+        'browserVersion',
+        'notes',
+        'tags',
+        'color',
+        'createdAt',
+        'updatedAt'
+      ]);
+    }
+
+    function hasRequiredFields(data) {
+      return data.keys().hasAll([
+        'id',
+        'name',
+        'isTemporary',
+        'privacyLevel',
+        'webrtcPolicy',
+        'proxy',
+        'os',
+        'browserType',
+        'browserVersion',
+        'notes',
+        'tags',
+        'color',
+        'createdAt',
+        'updatedAt'
+      ]);
+    }
+
+    function isValidTag(tag) {
+      return tag is string && tag.size() <= 64;
+    }
+
+    function isValidTags(tags) {
+      return tags is list
+        && tags.size() <= 20
+        && (tags.size() < 1 || isValidTag(tags[0]))
+        && (tags.size() < 2 || isValidTag(tags[1]))
+        && (tags.size() < 3 || isValidTag(tags[2]))
+        && (tags.size() < 4 || isValidTag(tags[3]))
+        && (tags.size() < 5 || isValidTag(tags[4]))
+        && (tags.size() < 6 || isValidTag(tags[5]))
+        && (tags.size() < 7 || isValidTag(tags[6]))
+        && (tags.size() < 8 || isValidTag(tags[7]))
+        && (tags.size() < 9 || isValidTag(tags[8]))
+        && (tags.size() < 10 || isValidTag(tags[9]))
+        && (tags.size() < 11 || isValidTag(tags[10]))
+        && (tags.size() < 12 || isValidTag(tags[11]))
+        && (tags.size() < 13 || isValidTag(tags[12]))
+        && (tags.size() < 14 || isValidTag(tags[13]))
+        && (tags.size() < 15 || isValidTag(tags[14]))
+        && (tags.size() < 16 || isValidTag(tags[15]))
+        && (tags.size() < 17 || isValidTag(tags[16]))
+        && (tags.size() < 18 || isValidTag(tags[17]))
+        && (tags.size() < 19 || isValidTag(tags[18]))
+        && (tags.size() < 20 || isValidTag(tags[19]));
+    }
+
+    function isValidProxy(proxy) {
+      return proxy is map
+        && proxy.keys().hasOnly(['enabled', 'mode', 'host', 'port'])
+        && proxy.keys().hasAll(['enabled', 'mode', 'host', 'port'])
+        && proxy.enabled is bool
+        && proxy.mode in ['direct', 'http', 'https', 'socks5']
+        && proxy.host is string
+        && proxy.host.size() <= 253
+        && proxy.port is int
+        && proxy.port >= 1
+        && proxy.port <= 65535;
+    }
+
+    // Shared schema validator is required for both creates and updates.
+    function isValidProfile(profileId) {
+      let data = request.resource.data;
+      return hasOnlyAllowedFields(data)
+        && hasRequiredFields(data)
+        && data.id is string
+        && data.id == profileId
+        && profileId.matches('^[a-zA-Z0-9_-]{1,128}$')
+        && data.name is string
+        && data.name.size() >= 1
+        && data.name.size() <= 64
+        && data.isTemporary is bool
+        && data.isTemporary == false
+        && data.privacyLevel in ['standard', 'balanced', 'strict']
+        && data.webrtcPolicy in [
+          'default',
+          'default_public_interface_only',
+          'disable_non_proxied_udp'
+        ]
+        && isValidProxy(data.proxy)
+        && data.os in ['mac', 'windows']
+        && data.browserType in ['chrome', 'edge', 'brave']
+        && data.browserVersion is string
+        && data.browserVersion.size() >= 1
+        && data.browserVersion.size() <= 64
+        && data.notes is string
+        && data.notes.size() <= 10000
+        && isValidTags(data.tags)
+        && data.color is string
+        && data.color.matches('^#[0-9a-fA-F]{6}$')
+        && data.createdAt is int
+        && data.createdAt >= 0
+        && data.createdAt <= 4102444800000
+        && data.updatedAt is int
+        && data.updatedAt >= data.createdAt
+        && data.updatedAt <= 4102444800000;
+    }
+
+    match /users/{userId}/profiles/{profileId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidProfile(profileId);
+      allow update: if isOwner(userId)
+        && isValidProfile(profileId)
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.isTemporary == resource.data.isTemporary
+        && request.resource.data.updatedAt >= resource.data.updatedAt;
+      allow delete: if isOwner(userId);
+    }
+
+    // Default deny for all other paths.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

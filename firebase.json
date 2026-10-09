@@ -1,0 +1,12 @@
+{
+  "auth": {
+    "providers": {}
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json",
+    "edition": "enterprise",
+    "database": "privacy-browser",
+    "location": "asia-southeast1"
+  }
+}

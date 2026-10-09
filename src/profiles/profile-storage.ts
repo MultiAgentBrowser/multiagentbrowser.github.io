@@ -6,6 +6,8 @@ import { ProfileDatabase } from '../database/profile-database';
 import { ProfileLock } from './profile-lock';
 
 export class ProfileStorage {
+  private static readonly demoProfileIds = new Set(['default', 'profile-work', 'profile-testing']);
+
   private static getManifestPath(): string {
     return path.join(AppPaths.getProfilesDir(), 'profiles.json');
   }
@@ -44,7 +46,7 @@ export class ProfileStorage {
         tags: row.profile.tags ? JSON.parse(row.profile.tags) : [],
         color: row.profile.color || '#3b82f6',
         createdAt: row.profile.created_at,
-        updatedAt: row.profile.last_used_at || row.profile.created_at,
+        updatedAt: row.profile.updated_at || row.profile.created_at,
       }));
     }
 
@@ -85,6 +87,7 @@ export class ProfileStorage {
           name: profile.name,
           storage_path: storagePath,
           created_at: profile.createdAt,
+          updated_at: profile.updatedAt,
           last_used_at: profile.lastUsedAt || null,
           status: profile.status || 'stopped',
           is_temporary: profile.isTemporary ? 1 : 0,
@@ -134,6 +137,15 @@ export class ProfileStorage {
     }
   }
 
+  public static replaceProfilesManifest(profiles: ProfileRecord[]): void {
+    const retainedIds = new Set(profiles.map((profile) => profile.id));
+    const db = ProfileDatabase.getInstance();
+    for (const { profile } of db.getAllProfiles()) {
+      if (!retainedIds.has(profile.id)) db.deleteProfile(profile.id);
+    }
+    this.saveProfilesManifest(profiles);
+  }
+
   /**
    * Ensures an isolated directory exists on disk for a specific profile.
    */
@@ -155,6 +167,16 @@ export class ProfileStorage {
     }
     const db = ProfileDatabase.getInstance();
     db.deleteProfile(profileId);
+  }
+
+  public static removeDemoProfiles(profiles: ProfileRecord[]): ProfileRecord[] {
+    const remaining = profiles.filter((profile) => !this.demoProfileIds.has(profile.id));
+    const removedProfiles = profiles.filter((profile) => this.demoProfileIds.has(profile.id));
+    if (removedProfiles.length === 0) return profiles;
+
+    for (const profile of removedProfiles) this.deleteProfileDirectory(profile.id);
+    this.saveProfilesManifest(remaining, []);
+    return remaining;
   }
 
   /**

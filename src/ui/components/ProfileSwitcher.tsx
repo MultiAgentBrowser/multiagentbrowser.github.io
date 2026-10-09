@@ -26,20 +26,12 @@ import { Profile, ProxyConfig } from '../../security/ipc-contracts';
 import { AVAILABLE_BROWSERS, getBrowserUserAgent } from '../../profiles/browser-definitions';
 
 interface ProfileSwitcherProps {
-  isOpen: boolean;
-  onClose: () => void;
   profiles: Profile[];
-  activeProfileId: string;
-  onSelectProfile: (profileId: string) => void;
   onRefreshProfiles: () => void;
 }
 
 export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
-  isOpen,
-  onClose,
   profiles,
-  activeProfileId,
-  onSelectProfile,
   onRefreshProfiles,
 }) => {
   // Navigation & filtering state
@@ -49,7 +41,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   const [runningProfileIds, setRunningProfileIds] = useState<string[]>([]);
 
   // Creation & Editing modal state
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(profiles.length === 0);
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
 
   // Form fields
@@ -94,9 +86,14 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
         if (unsub) unsub();
       };
     }
-  }, [isOpen]);
+  }, []);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (profiles.length === 0) {
+      setEditingProfileId(null);
+      setIsCreateOpen(true);
+    }
+  }, [profiles.length]);
 
   const filteredProfiles = profiles.filter((p) => {
     const matchesQuery = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -244,10 +241,6 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   };
 
   const handleDelete = async (profileId: string) => {
-    if (profiles.length <= 1) {
-      alert('Cannot delete the last remaining profile.');
-      return;
-    }
     if (confirm('Delete this profile permanently and wipe all stored cookies & partition data?')) {
       await window.browserAPI.deleteProfile(profileId);
       onRefreshProfiles();
@@ -286,32 +279,26 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   return (
     <div
       style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(0,0,0,0.75)',
-        backdropFilter: 'blur(6px)',
+        position: 'relative',
+        height: '100%',
+        minHeight: 0,
+        backgroundColor: '#121316',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
+        flexDirection: 'column',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
-      onClick={onClose}
     >
+      {!isCreateOpen && (
       <div
         style={{
-          width: '92vw',
-          maxWidth: 1050,
-          height: '85vh',
+          width: '100%',
+          height: '100%',
+          minHeight: 0,
           backgroundColor: '#16181f',
-          border: '1px solid #2d3142',
-          borderRadius: 14,
-          boxShadow: '0 24px 60px rgba(0,0,0,0.8)',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Top Header Bar */}
         <div
@@ -404,19 +391,6 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
               New Profile
             </button>
 
-            <button
-              onClick={onClose}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#9ba1b0',
-                cursor: 'pointer',
-                padding: 4,
-                marginLeft: 6,
-              }}
-            >
-              <X size={20} />
-            </button>
           </div>
         </div>
 
@@ -807,22 +781,20 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                           <Download size={14} />
                         </button>
 
-                        {profiles.length > 1 && (
-                          <button
-                            onClick={() => handleDelete(p.id)}
-                            style={{
-                              background: '#232634',
-                              border: '1px solid #32374b',
-                              borderRadius: 6,
-                              color: '#ef4444',
-                              padding: 6,
-                              cursor: 'pointer',
-                            }}
-                            title="Delete Profile"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => handleDelete(p.id)}
+                          style={{
+                            background: '#232634',
+                            border: '1px solid #32374b',
+                            borderRadius: 6,
+                            color: '#ef4444',
+                            padding: 6,
+                            cursor: 'pointer',
+                          }}
+                          title="Delete Profile"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -832,36 +804,31 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
           </table>
         </div>
       </div>
+      )}
 
-      {/* Advanced Create / Edit Profile Modal */}
+      {/* The profile editor occupies the app page instead of opening as a dialog. */}
       {isCreateOpen && (
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundColor: '#16181f',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
         <div
           style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0,0,0,0.85)',
+            width: '100%',
+            height: '100%',
+            minHeight: 0,
+            backgroundColor: '#1a1c24',
+            overflow: 'hidden',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1100,
+            flexDirection: 'column',
           }}
-          onClick={() => setIsCreateOpen(false)}
         >
-          <div
-            style={{
-              width: 580,
-              backgroundColor: '#1a1c24',
-              border: '1px solid #33384c',
-              borderRadius: 14,
-              boxShadow: '0 20px 50px rgba(0,0,0,0.9)',
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-              maxHeight: '90vh',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Title */}
+            {/* Editor Header */}
             <div
               style={{
                 padding: '16px 22px',
@@ -882,8 +849,8 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
               </button>
             </div>
 
-            {/* Modal Body */}
-            <div style={{ padding: '20px 22px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Editor Form */}
+            <div style={{ flex: 1, minHeight: 0, padding: '20px 22px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
               {/* Profile Name & OS */}
               <div style={{ display: 'flex', gap: 12 }}>
                 <div style={{ flex: 1 }}>
@@ -1255,7 +1222,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
               </label>
             </div>
 
-            {/* Modal Actions */}
+            {/* Editor Actions */}
             <div
               style={{
                 padding: '14px 22px',

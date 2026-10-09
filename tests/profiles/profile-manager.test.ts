@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { ProfileManager } from '../../src/profiles/profile-manager';
 import { ProfileDatabase } from '../../src/database/profile-database';
 import { ProfileLock } from '../../src/profiles/profile-lock';
+import { ProfileRecordSchema } from '../../src/profiles/profile-model';
+import { ProfileStorage } from '../../src/profiles/profile-storage';
 import { AppPaths } from '../../src/platform/paths';
 import fs from 'fs';
 import path from 'path';
@@ -18,14 +20,40 @@ describe('ProfileManager Lifecycle & Storage Isolation', () => {
     manager = new ProfileManager();
   });
 
-  it('initializes with default profiles (Personal, Work, Testing)', () => {
+  it('starts with no demo profiles and does not select a default browser profile', () => {
     const profiles = manager.listProfiles();
-    expect(profiles.length).toBeGreaterThanOrEqual(3);
+    expect(profiles).toEqual([]);
+    expect(() => manager.getActiveProfile()).toThrow('No profiles are available. Sign in and create a profile first.');
+  });
 
-    const names = profiles.map((p) => p.name);
-    expect(names).toContain('Personal');
-    expect(names).toContain('Work');
-    expect(names).toContain('Testing');
+  it('removes persisted demo profile records and their directories', () => {
+    const demo = ProfileRecordSchema.parse({
+      id: 'default',
+      name: 'Personal',
+      storagePath: AppPaths.getProfileStorageDir('default'),
+      isTemporary: false,
+      privacyLevel: 'balanced',
+      webrtcPolicy: 'default_public_interface_only',
+      proxy: { enabled: false, mode: 'direct', host: '', port: 8080 },
+      os: 'mac',
+      browserType: 'chrome',
+      browserVersion: '131.0.6778.86',
+      status: 'stopped',
+      lastUsedAt: null,
+      notes: '',
+      tags: [],
+      color: '#3b82f6',
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    ProfileStorage.ensureProfileDirectory(demo.id);
+    ProfileStorage.saveProfilesManifest([demo]);
+
+    manager = new ProfileManager();
+
+    expect(manager.listProfiles()).toEqual([]);
+    expect(ProfileDatabase.getInstance().getProfile(demo.id)).toBeNull();
+    expect(fs.existsSync(demo.storagePath)).toBe(false);
   });
 
   it('creates an isolated profile with dedicated storage path', () => {
@@ -51,6 +79,63 @@ describe('ProfileManager Lifecycle & Storage Isolation', () => {
     const updated = manager.renameProfile(profile.id, 'New Name');
     expect(updated.name).toBe('New Name');
     expect(manager.getProfile(profile.id)?.name).toBe('New Name');
+  });
+
+  it('replaces profiles from this account without overwriting matching local proxy credentials', () => {
+    const local = manager.createProfile({
+      name: 'Cloud profile',
+      proxy: {
+        enabled: true,
+        mode: 'http',
+        host: 'old.proxy.test',
+        port: 8080,
+        username: 'local-user',
+        password: 'local-secret',
+      },
+    });
+    const remote = {
+      ...local,
+      name: 'Cloud profile updated',
+      updatedAt: local.updatedAt + 1,
+      proxy: {
+        enabled: true,
+        mode: 'http' as const,
+        host: 'new.proxy.test',
+        port: 9090,
+      },
+    };
+
+    const replaced = manager.replaceSyncedProfiles([remote]);
+    const profile = replaced.find((item) => item.id === local.id);
+
+    expect(profile?.name).toBe('Cloud profile updated');
+    expect(profile?.proxy.host).toBe('new.proxy.test');
+    expect(profile?.proxy.username).toBe('local-user');
+    expect(profile?.proxy.password).toBe('local-secret');
+  });
+
+  it('clears profiles from a previous local account when the signed-in account is empty', () => {
+    const local = manager.createProfile({ name: 'Previous account profile' });
+
+    expect(manager.replaceSyncedProfiles([])).toEqual([]);
+    expect(manager.listProfiles()).toEqual([]);
+    expect(ProfileDatabase.getInstance().getProfile(local.id)).toBeNull();
+    expect(fs.existsSync(AppPaths.getProfileStorageDir(local.id))).toBe(true);
+  });
+
+  it('does not treat local running status changes as profile-setting edits', () => {
+    const profile = manager.createProfile({ name: 'Status test' });
+    const updatedAt = profile.updatedAt;
+
+    manager.updateProfileStatus(profile.id, 'running');
+
+    expect(manager.getProfile(profile.id)?.updatedAt).toBe(updatedAt);
+  });
+
+  it('rejects cloud profiles with unsafe IDs', () => {
+    const profile = manager.listProfiles()[0];
+    expect(() => manager.replaceSyncedProfiles([{ ...profile, id: '../outside' }]))
+      .toThrow('Cloud profile data is invalid.');
   });
 
   it('duplicates a profile preserving privacy settings', () => {
@@ -99,17 +184,13 @@ describe('ProfileManager Lifecycle & Storage Isolation', () => {
     expect(fs.existsSync(storagePath)).toBe(false);
   });
 
-  it('protects against deleting the last remaining profile', () => {
-    const all = manager.listProfiles();
-    // Delete all except one
-    for (let i = 1; i < all.length; i++) {
-      manager.deleteProfile(all[i].id);
-    }
+  it('allows deleting the last profile and returns to an empty state', () => {
+    const profile = manager.createProfile({ name: 'Last profile' });
 
-    const last = manager.listProfiles();
-    expect(last.length).toBe(1);
-    expect(() => manager.deleteProfile(last[0].id)).toThrow(
-      'Cannot delete the last remaining profile'
+    expect(manager.deleteProfile(profile.id)).toBe(true);
+    expect(manager.listProfiles()).toEqual([]);
+    expect(() => manager.getActiveProfile()).toThrow(
+      'No profiles are available. Sign in and create a profile first.'
     );
   });
 

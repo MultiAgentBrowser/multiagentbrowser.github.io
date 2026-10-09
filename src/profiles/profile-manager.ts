@@ -4,12 +4,13 @@ import {
   UpdateProfileDTO,
   ProfileExport,
   ProfileExportSchema,
+  ProfileRecordSchema,
 } from './profile-model';
 import { ProfileStorage } from './profile-storage';
 
 export class ProfileManager {
   private profiles: Map<string, ProfileRecord> = new Map();
-  private activeProfileId: string = 'default';
+  private activeProfileId: string | null = null;
 
   constructor() {
     this.init();
@@ -17,48 +18,10 @@ export class ProfileManager {
 
   private init(): void {
     const loaded = ProfileStorage.loadProfilesManifest();
-    const cleaned = ProfileStorage.cleanupTemporaryProfiles(loaded);
-
-    if (cleaned.length === 0) {
-      // Create initial profiles: Personal, Work, Testing
-      const personal = this.createProfileInternal({
-        id: 'default',
-        name: 'Personal',
-        isTemporary: false,
-        privacyLevel: 'balanced',
-        webrtcPolicy: 'default_public_interface_only',
-        proxy: { enabled: false, mode: 'direct', host: '', port: 8080 },
-        color: '#3b82f6',
-      });
-
-      this.createProfileInternal({
-        id: 'profile-work',
-        name: 'Work',
-        isTemporary: false,
-        privacyLevel: 'balanced',
-        webrtcPolicy: 'default_public_interface_only',
-        proxy: { enabled: false, mode: 'direct', host: '', port: 8080 },
-        color: '#10b981',
-      });
-
-      this.createProfileInternal({
-        id: 'profile-testing',
-        name: 'Testing',
-        isTemporary: false,
-        privacyLevel: 'strict',
-        webrtcPolicy: 'disable_non_proxied_udp',
-        proxy: { enabled: false, mode: 'direct', host: '', port: 8080 },
-        color: '#f59e0b',
-      });
-
-      this.activeProfileId = personal.id;
-      this.persist();
-    } else {
-      for (const p of cleaned) {
-        this.profiles.set(p.id, p);
-      }
-      this.activeProfileId = cleaned[0].id;
-    }
+    const withoutDemoProfiles = ProfileStorage.removeDemoProfiles(loaded);
+    const cleaned = ProfileStorage.cleanupTemporaryProfiles(withoutDemoProfiles);
+    for (const profile of cleaned) this.profiles.set(profile.id, profile);
+    this.activeProfileId = cleaned[0]?.id ?? null;
   }
 
   private createProfileInternal(data: {
@@ -92,6 +55,7 @@ export class ProfileManager {
     };
 
     this.profiles.set(profile.id, profile);
+    if (!this.activeProfileId) this.activeProfileId = profile.id;
     return profile;
   }
 
@@ -127,11 +91,53 @@ export class ProfileManager {
     return Array.from(this.profiles.values());
   }
 
+  public replaceSyncedProfiles(records: unknown[]): ProfileRecord[] {
+    this.refreshProfiles();
+    const nextProfiles = new Map<string, ProfileRecord>();
+
+    for (const record of records) {
+      const parsed = ProfileRecordSchema.safeParse(record);
+      if (!parsed.success) {
+        throw new Error('Cloud profile data is invalid.');
+      }
+      const remote = parsed.data;
+      if (!/^[a-zA-Z0-9_-]+$/.test(remote.id)) {
+        throw new Error('Cloud profile data is invalid.');
+      }
+      if (remote.isTemporary) continue;
+
+      const local = this.profiles.get(remote.id);
+      const profile: ProfileRecord = {
+        ...remote,
+        storagePath: ProfileStorage.ensureProfileDirectory(remote.id),
+        isTemporary: false,
+        status: 'stopped',
+        lastUsedAt: local?.lastUsedAt ?? null,
+        proxy: {
+          ...remote.proxy,
+          username: local?.proxy.username,
+          password: local?.proxy.password,
+        },
+      };
+      nextProfiles.set(remote.id, profile);
+    }
+
+    this.profiles = nextProfiles;
+    if (!this.activeProfileId || !nextProfiles.has(this.activeProfileId)) {
+      this.activeProfileId = nextProfiles.keys().next().value ?? null;
+    }
+    ProfileStorage.replaceProfilesManifest(Array.from(nextProfiles.values()));
+    return Array.from(this.profiles.values());
+  }
+
   public getActiveProfile(): ProfileRecord {
     this.refreshProfiles();
-    const active = this.profiles.get(this.activeProfileId);
+    const active = this.activeProfileId ? this.profiles.get(this.activeProfileId) : undefined;
     if (active) return active;
     const fallback = Array.from(this.profiles.values())[0];
+    if (!fallback) {
+      throw new Error('No profiles are available. Sign in and create a profile first.');
+    }
     this.activeProfileId = fallback.id;
     return fallback;
   }
@@ -176,7 +182,6 @@ export class ProfileManager {
       if (status === 'running') {
         profile.lastUsedAt = Date.now();
       }
-      profile.updatedAt = Date.now();
       this.persist([profileId]);
     }
   }
@@ -210,10 +215,6 @@ export class ProfileManager {
 
   public deleteProfile(profileId: string): boolean {
     this.refreshProfiles();
-    if (this.profiles.size <= 1) {
-      throw new Error('Cannot delete the last remaining profile');
-    }
-
     const profile = this.profiles.get(profileId);
     if (!profile) return false;
 
@@ -223,7 +224,7 @@ export class ProfileManager {
 
     // If active profile was deleted, switch to another
     if (this.activeProfileId === profileId) {
-      this.activeProfileId = Array.from(this.profiles.values())[0].id;
+      this.activeProfileId = Array.from(this.profiles.values())[0]?.id ?? null;
     }
 
     this.persist([profile.id]);
@@ -280,11 +281,9 @@ export class ProfileManager {
 
   private refreshProfiles(): void {
     const loaded = ProfileStorage.loadProfilesManifest();
-    if (loaded.length === 0) return;
-
     this.profiles = new Map(loaded.map((profile) => [profile.id, profile]));
-    if (!this.profiles.has(this.activeProfileId)) {
-      this.activeProfileId = loaded[0].id;
+    if (!this.activeProfileId || !this.profiles.has(this.activeProfileId)) {
+      this.activeProfileId = loaded[0]?.id ?? null;
     }
   }
 }

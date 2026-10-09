@@ -101,6 +101,9 @@ export const IPC_CHANNELS = {
   PROFILE_STOP: 'profile:stop',
   PROFILE_GET_RUNNING: 'profile:get-running',
   PROFILE_RUNNING_UPDATED: 'profile:running-updated',
+  PROFILE_SYNC_REPLACE: 'profile:sync-replace',
+  PROFILE_SYNC_CHANGED: 'profile:sync-changed',
+  AUTH_SET_USER: 'auth:set-user',
 
   // Cookies & Storage
   COOKIE_GET: 'cookie:get',

@@ -22,13 +22,13 @@ export const ProfileRecordSchema = z.object({
   }),
   os: z.enum(['mac', 'windows']).default('mac'),
   browserType: z.enum(['chrome', 'edge', 'brave']).default('chrome'),
-  browserVersion: z.string().default('131.0.6778.86'),
+  browserVersion: z.string().min(1).max(64).default('131.0.6778.86'),
   storagePath: z.string().default(''),
   status: z.enum(['stopped', 'running', 'crashed']).default('stopped'),
   lastUsedAt: z.number().nullable().default(null),
-  notes: z.string().default(''),
-  tags: z.array(z.string()).default([]),
-  color: z.string().default('#3b82f6'),
+  notes: z.string().max(10000).default(''),
+  tags: z.array(z.string().max(64)).max(20).default([]),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#3b82f6'),
   createdAt: z.number(),
   updatedAt: z.number(),
 });
@@ -69,4 +69,3 @@ export interface UpdateProfileDTO {
   tags?: string[];
   color?: string;
 }
-

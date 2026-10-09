@@ -7,6 +7,7 @@ export interface ProfileDBRow {
   name: string;
   storage_path: string;
   created_at: number;
+  updated_at?: number;
   last_used_at: number | null;
   status: 'stopped' | 'running' | 'crashed';
   is_temporary: number; // 0 or 1
