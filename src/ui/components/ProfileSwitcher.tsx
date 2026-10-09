@@ -41,7 +41,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   const [runningProfileIds, setRunningProfileIds] = useState<string[]>([]);
 
   // Creation & Editing modal state
-  const [isCreateOpen, setIsCreateOpen] = useState(profiles.length === 0);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
 
   // Form fields
@@ -87,13 +87,6 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
       };
     }
   }, []);
-
-  useEffect(() => {
-    if (profiles.length === 0) {
-      setEditingProfileId(null);
-      setIsCreateOpen(true);
-    }
-  }, [profiles.length]);
 
   const filteredProfiles = profiles.filter((p) => {
     const matchesQuery = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -329,7 +322,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <h2 style={{ fontSize: 18, fontWeight: 700, color: '#ffffff', margin: 0 }}>
-                  My Browser
+                  Profiles
                 </h2>
                 <span
                   style={{
@@ -341,12 +334,9 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                     fontWeight: 600,
                   }}
                 >
-                  Running Profiles: {runningProfileIds.length} ({profiles.length} Total)
+                  {runningProfileIds.length} running · {profiles.length} total
                 </span>
               </div>
-              <p style={{ fontSize: 12, color: '#8b92a2', margin: '2px 0 0 0' }}>
-                Isolated multi-profile Chromium instances with independent cookies, cache, and proxies.
-              </p>
             </div>
           </div>
 

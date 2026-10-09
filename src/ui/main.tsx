@@ -33,10 +33,10 @@ const App: React.FC = () => {
     <div className="app-container">
       {isAuthenticated && (
         <>
-          <header className="window-titlebar" style={{ justifyContent: 'space-between', paddingLeft: 24 }}>
+          <header className="window-titlebar" style={{ justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#e2e4e9', fontWeight: 650 }}>
               <ShieldCheck size={19} color="#60a5fa" />
-              Privacy Browser
+              Multi Agent
             </div>
           </header>
 

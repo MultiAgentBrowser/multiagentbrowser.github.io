@@ -1,5 +1,5 @@
 appId: com.privacybrowser.app
-productName: Privacy Browser
+productName: Multi Agent
 directories:
   output: release
   buildResources: build

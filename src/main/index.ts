@@ -24,6 +24,7 @@ function createMainWindow() {
     height: 840,
     minWidth: 800,
     minHeight: 600,
+    title: 'Multi Agent',
     titleBarStyle: platform.isMac ? 'hiddenInset' : 'default',
     trafficLightPosition: { x: 12, y: 12 },
     backgroundColor: '#121316',
