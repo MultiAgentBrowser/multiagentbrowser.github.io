@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": false,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+  "include": [
+    "src/main/**/*",
+    "src/browser/**/*",
+    "src/tabs/**/*",
+    "src/profiles/**/*",
+    "src/privacy/**/*",
+    "src/network/**/*",
+    "src/permissions/**/*",
+    "src/security/**/*",
+    "src/downloads/**/*",
+    "src/bookmarks/**/*",
+    "src/history/**/*",
+    "src/settings/**/*",
+    "src/platform/**/*",
+    "src/preload/**/*"
+  ]
+}
+
