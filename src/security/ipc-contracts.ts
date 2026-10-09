@@ -118,4 +118,7 @@ export const IPC_CHANNELS = {
 
   // DevTools
   DEVTOOLS_TOGGLE: 'devtools:toggle',
+
+  // Viewport Visibility
+  VIEW_SET_VISIBILITY: 'view:set-visibility',
 } as const;

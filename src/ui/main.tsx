@@ -54,6 +54,12 @@ const App: React.FC = () => {
   }, [refreshProfiles]);
 
   useEffect(() => {
+    if (window.browserAPI && (window.browserAPI as any).setWebviewVisibility) {
+      (window.browserAPI as any).setWebviewVisibility(!isProfilesModalOpen && !isPrivacyDashboardOpen);
+    }
+  }, [isProfilesModalOpen, isPrivacyDashboardOpen]);
+
+  useEffect(() => {
     if (window.browserAPI) {
       window.browserAPI.listTabs().then((serverTabs) => {
         if (serverTabs && serverTabs.length > 0) {

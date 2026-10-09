@@ -35,18 +35,41 @@ export class ViewManager {
     this.onOpenNewTabRequested = onOpenNewTab;
   }
 
+  private isViewVisible: boolean = true;
+
   private bindWindowEvents(): void {
-    this.window.on('resize', () => {
-      this.updateActiveViewBounds();
-    });
+    const update = () => this.updateActiveViewBounds();
+    this.window.on('resize', update);
+    this.window.on('maximize', update);
+    this.window.on('unmaximize', update);
+    this.window.on('enter-full-screen', update);
+    this.window.on('leave-full-screen', update);
   }
 
-  public updateActiveViewBounds(): void {
+  public setViewVisibility(visible: boolean): void {
+    this.isViewVisible = visible;
     if (!this.activeTabId) return;
     const active = this.views.get(this.activeTabId);
     if (!active) return;
 
-    const [width, height] = this.window.getSize();
+    if (visible) {
+      if (!this.window.contentView.children.includes(active.view)) {
+        this.window.contentView.addChildView(active.view);
+      }
+      this.updateActiveViewBounds();
+    } else {
+      if (this.window.contentView.children.includes(active.view)) {
+        this.window.contentView.removeChildView(active.view);
+      }
+    }
+  }
+
+  public updateActiveViewBounds(): void {
+    if (!this.activeTabId || !this.isViewVisible) return;
+    const active = this.views.get(this.activeTabId);
+    if (!active) return;
+
+    const [width, height] = this.window.getContentSize();
     const bounds = ViewLayout.calculateViewportBounds(width, height);
     active.view.setBounds(bounds);
   }
@@ -203,12 +226,14 @@ export class ViewManager {
       }
     }
 
-    // Attach new view to contentView
+    // Attach new view to contentView if visible
     const next = this.views.get(tabId);
     if (next) {
-      this.window.contentView.addChildView(next.view);
       this.activeTabId = tabId;
-      this.updateActiveViewBounds();
+      if (this.isViewVisible) {
+        this.window.contentView.addChildView(next.view);
+        this.updateActiveViewBounds();
+      }
     }
   }
 

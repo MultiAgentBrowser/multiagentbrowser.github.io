@@ -50,6 +50,9 @@ const IPC_CHANNELS = {
 
   // DevTools
   DEVTOOLS_TOGGLE: 'devtools:toggle',
+
+  // Viewport Visibility
+  VIEW_SET_VISIBILITY: 'view:set-visibility',
 } as const;
 
 const browserAPI = {
@@ -120,6 +123,10 @@ const browserAPI = {
   // Privacy & Stats
   getPrivacyStats: (tabId?: string): Promise<PrivacyStats> =>
     ipcRenderer.invoke(IPC_CHANNELS.PRIVACY_GET_STATS, { tabId }),
+
+  // Viewport Visibility
+  setWebviewVisibility: (visible: boolean): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.VIEW_SET_VISIBILITY, { visible }),
 
   // DevTools
   toggleDevTools: (tabId?: string): Promise<void> =>

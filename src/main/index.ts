@@ -314,6 +314,12 @@ function registerIpcHandlers() {
   ipcMain.handle(IPC_CHANNELS.DEVTOOLS_TOGGLE, async (_event, { tabId }) => {
     viewManager?.toggleDevTools(tabId);
   });
+
+  ipcMain.handle(IPC_CHANNELS.VIEW_SET_VISIBILITY, async (event, { visible }) => {
+    const { viewMgr } = getWindowContext(event);
+    if (!viewMgr) return;
+    viewMgr.setViewVisibility(Boolean(visible));
+  });
 }
 
 app.whenReady().then(() => {
