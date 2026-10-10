@@ -32,8 +32,11 @@ export class CookieManager {
         const firstPartyUrl = frame?.url || details.webContents?.getURL() || '';
 
         if (firstPartyUrl && CookieUtils.isThirdParty(firstPartyUrl, url)) {
-          if (requestHeaders['Cookie']) {
-            delete requestHeaders['Cookie'];
+          const cookieHeader = Object.keys(requestHeaders).find(
+            (key) => key.toLowerCase() === 'cookie'
+          );
+          if (cookieHeader) {
+            delete requestHeaders[cookieHeader];
             this.incrementBlockedCount(profileId);
           }
         }

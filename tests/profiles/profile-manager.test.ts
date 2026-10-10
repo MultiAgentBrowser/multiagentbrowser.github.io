@@ -81,6 +81,20 @@ describe('ProfileManager Lifecycle & Storage Isolation', () => {
     expect(manager.getProfile(profile.id)?.name).toBe('New Name');
   });
 
+  it('persists custom User-Agent values through profile create, update, and duplicate', () => {
+    const profile = manager.createProfile({
+      name: 'Custom UA',
+      customUserAgent: 'ExampleBrowser/1.0',
+    });
+    expect(manager.getProfile(profile.id)?.customUserAgent).toBe('ExampleBrowser/1.0');
+
+    manager.updateProfile(profile.id, { customUserAgent: 'ExampleBrowser/2.0' });
+    expect(manager.getProfile(profile.id)?.customUserAgent).toBe('ExampleBrowser/2.0');
+
+    const duplicate = manager.duplicateProfile(profile.id);
+    expect(duplicate.customUserAgent).toBe('ExampleBrowser/2.0');
+  });
+
   it('replaces profiles from this account without overwriting matching local proxy credentials', () => {
     const local = manager.createProfile({
       name: 'Cloud profile',

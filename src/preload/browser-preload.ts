@@ -68,7 +68,7 @@ const browserAPI = {
   // Profile Management
   listProfiles: (): Promise<Profile[]> =>
     ipcRenderer.invoke(IPC_CHANNELS.PROFILE_LIST),
-  createProfile: (data: { name: string; isTemporary?: boolean; privacyLevel?: string; color?: string }): Promise<Profile> =>
+  createProfile: (data: { name: string; isTemporary?: boolean; privacyLevel?: string; color?: string; customUserAgent?: string }): Promise<Profile> =>
     ipcRenderer.invoke(IPC_CHANNELS.PROFILE_CREATE, data),
   updateProfile: (profileId: string, data: any): Promise<Profile> =>
     ipcRenderer.invoke(IPC_CHANNELS.PROFILE_UPDATE, { profileId, data }),

@@ -34,6 +34,7 @@ export class ProfileManager {
     os?: 'mac' | 'windows';
     browserType?: 'chrome' | 'edge' | 'brave';
     browserVersion?: string;
+    customUserAgent?: string;
     notes?: string;
     group?: string;
     tags?: string[];
@@ -74,6 +75,7 @@ export class ProfileManager {
       os: dto.os || 'mac',
       browserType: dto.browserType || 'chrome',
       browserVersion: dto.browserVersion || '131.0.6778.86',
+      customUserAgent: dto.customUserAgent?.trim() || undefined,
       notes: dto.notes || '',
       group: dto.group || 'Default',
       tags: dto.tags || [],
@@ -168,6 +170,9 @@ export class ProfileManager {
     if (dto.os !== undefined) profile.os = dto.os;
     if (dto.browserType !== undefined) profile.browserType = dto.browserType;
     if (dto.browserVersion !== undefined) profile.browserVersion = dto.browserVersion;
+    if (dto.customUserAgent !== undefined) {
+      profile.customUserAgent = dto.customUserAgent.trim() || undefined;
+    }
     if (dto.notes !== undefined) profile.notes = dto.notes;
     if (dto.group !== undefined) profile.group = dto.group;
     if (dto.tags !== undefined) profile.tags = dto.tags;
@@ -211,6 +216,7 @@ export class ProfileManager {
       os: source.os,
       browserType: source.browserType,
       browserVersion: source.browserVersion,
+      customUserAgent: source.customUserAgent,
       notes: source.notes,
       group: source.group,
       tags: [...source.tags],
@@ -274,6 +280,7 @@ export class ProfileManager {
       os: importedProfile.os,
       browserType: importedProfile.browserType,
       browserVersion: importedProfile.browserVersion,
+      customUserAgent: importedProfile.customUserAgent,
       notes: importedProfile.notes,
       tags: importedProfile.tags,
       color: importedProfile.color,

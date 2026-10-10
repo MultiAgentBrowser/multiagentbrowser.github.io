@@ -42,6 +42,7 @@ export class ProfileStorage {
         os: (row.browser?.os as any) || 'mac',
         browserType: (row.browser?.browser_type as any) || 'chrome',
         browserVersion: row.browser?.browser_version || '131.0.6778.86',
+        customUserAgent: row.browser?.custom_user_agent || undefined,
         notes: row.profile.notes || '',
         group: (row.profile as any).group || 'Default',
         tags: (() => {
@@ -126,6 +127,7 @@ export class ProfileStorage {
           browser_version: profile.browserVersion || '131.0.6778.86',
           os: profile.os || 'mac',
           custom_flags: '',
+          custom_user_agent: profile.customUserAgent || '',
         }
       );
     }

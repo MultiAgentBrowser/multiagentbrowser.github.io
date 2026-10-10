@@ -10,6 +10,8 @@ describe('Tracker Blocker Engine & Site Exceptions', () => {
     expect(BlocklistStore.isTrackerDomain('connect.facebook.net')).toBe(true);
     expect(BlocklistStore.isTrackerDomain('static.criteo.net')).toBe(true);
     expect(BlocklistStore.isTrackerDomain('in.hotjar.com')).toBe(true);
+    expect(BlocklistStore.isTrackerDomain('fpnpmcdn.net')).toBe(true);
+    expect(BlocklistStore.isTrackerDomain('cdn.fingerprintjs.com')).toBe(true);
   });
 
   it('permits legitimate first-party non-tracker domains', () => {
@@ -17,6 +19,7 @@ describe('Tracker Blocker Engine & Site Exceptions', () => {
     expect(BlocklistStore.isTrackerDomain('en.wikipedia.org')).toBe(false);
     expect(BlocklistStore.isTrackerDomain('github.com')).toBe(false);
     expect(BlocklistStore.isTrackerDomain('api.github.com')).toBe(false);
+    expect(BlocklistStore.isTrackerDomain('fingerprintjs.com.attacker.example')).toBe(false);
   });
 
   it('correctly decides whether to block incoming requests', () => {
@@ -48,4 +51,3 @@ describe('Tracker Blocker Engine & Site Exceptions', () => {
     expect(TrackerBlocker.shouldBlockRequest(trackerUrl, firstPartySite)).toBe(true);
   });
 });
-

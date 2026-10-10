@@ -41,6 +41,7 @@ export interface BrowserSettingsRow {
   browser_version: string;
   os: string;
   custom_flags: string;
+  custom_user_agent?: string;
 }
 
 /**

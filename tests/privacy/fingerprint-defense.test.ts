@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { FingerprintConfig } from '../../src/privacy/fingerprint/fingerprint-config';
 import { FingerprintInjector } from '../../src/privacy/fingerprint/fingerprint-injector';
+import { getProfileFingerprintSeed } from '../../src/privacy/fingerprint/profile-fingerprint';
 
 describe('Consistent Fingerprint Defense & Normalization', () => {
   it('generates internally consistent environments per platform', () => {
@@ -30,6 +31,12 @@ describe('Consistent Fingerprint Defense & Normalization', () => {
     }
   });
 
+  it('keeps a stable fingerprint seed per profile and separates profiles', () => {
+    expect(getProfileFingerprintSeed('profile-a')).toBe(getProfileFingerprintSeed('profile-a'));
+    expect(getProfileFingerprintSeed('profile-a')).not.toBe(getProfileFingerprintSeed('profile-b'));
+    expect(getProfileFingerprintSeed('profile-a')).toMatch(/^[a-f0-9]{64}$/);
+  });
+
   it('generates complete protective injection scripts for all targets', () => {
     const env = FingerprintConfig.getConsistentEnvironment(true);
     const script = FingerprintInjector.generateInjectionScript(env, 'profile-test', 'balanced');
@@ -44,4 +51,3 @@ describe('Consistent Fingerprint Defense & Normalization', () => {
     expect(script).toContain('enumerateDevices');
   });
 });
-

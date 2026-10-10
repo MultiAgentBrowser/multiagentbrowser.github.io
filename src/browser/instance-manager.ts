@@ -9,8 +9,9 @@ import { getBrowserExecutable, getChromeExecutable } from './chrome-launcher';
 import { createProxyAuthExtension } from './proxy-extension';
 import { AppPaths } from '../platform/paths';
 import { ProxyManager } from '../network/proxy/proxy-manager';
-import { getBrowserUserAgent } from '../profiles/browser-definitions';
+import { getEffectiveUserAgent } from '../profiles/browser-definitions';
 import { ProfileStorage } from '../profiles/profile-storage';
+import { createFingerprintProtectionExtension } from '../privacy/fingerprint/fingerprint-extension';
 
 export class BrowserInstanceManager {
   private static mainWindow: BrowserWindow | null = null;
@@ -54,13 +55,21 @@ export class BrowserInstanceManager {
       const userDataPath = path.join(AppPaths.getProfileStorageDir(profileId), 'ChromiumProfileData');
       fs.mkdirSync(userDataPath, { recursive: true });
       const proxyRules = ProxyManager.buildProxyRules(profile.proxy);
+      const extensionPaths = [
+        createFingerprintProtectionExtension(
+          path.join(userDataPath, 'FingerprintProtectionExtension'),
+          profile.id,
+          profile.os,
+          profile.privacyLevel
+        ),
+      ];
 
       const args = [
         `--user-data-dir=${userDataPath}`,
         '--no-first-run',
         '--no-default-browser-check',
         '--new-window',
-        `--user-agent=${getBrowserUserAgent(profile.browserType, profile.browserVersion, profile.os)}`,
+        `--user-agent=${getEffectiveUserAgent(profile.browserType, profile.browserVersion, profile.os, profile.customUserAgent)}`,
         `--force-webrtc-ip-handling-policy=${profile.webrtcPolicy}`,
         `--proxy-server=${proxyRules}`,
         '--proxy-bypass-list=<local>',
@@ -68,15 +77,15 @@ export class BrowserInstanceManager {
 
       // If proxy authentication credentials are provided, load the ephemeral proxy auth extension
       if (profile.proxy.enabled && profile.proxy.username && profile.proxy.password) {
-        const extPath = createProxyAuthExtension(
+        extensionPaths.push(createProxyAuthExtension(
           path.join(userDataPath, 'ProxyAuthExtension'),
           profile.proxy.username,
           profile.proxy.password
-        );
-        args.push(`--load-extension=${extPath}`);
-        args.push(`--disable-extensions-except=${extPath}`);
+        ));
       }
 
+      args.push(`--load-extension=${extensionPaths.join(',')}`);
+      args.push(`--disable-extensions-except=${extensionPaths.join(',')}`);
       args.push('https://duckduckgo.com');
 
       const child = spawn(executablePath, args, { detached: true, stdio: 'ignore' });

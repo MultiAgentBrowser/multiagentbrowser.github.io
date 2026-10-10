@@ -21,6 +21,7 @@ describe('Cloud profile serialization', () => {
       os: 'mac',
       browserType: 'chrome',
       browserVersion: '154.0.8037.98',
+      customUserAgent: 'CustomBrowser/1.0',
       group: 'Work',
       storagePath: '/private/profile/path',
       status: 'running',
@@ -40,9 +41,36 @@ describe('Cloud profile serialization', () => {
     expect(cloudData).toMatchObject({
       isTemporary: false,
       group: 'Work',
+      customUserAgent: 'CustomBrowser/1.0',
       proxy: { enabled: true, host: 'proxy.example.com', port: 8080 },
     });
     expect(cloudData.proxy).not.toHaveProperty('username');
     expect(cloudData.proxy).not.toHaveProperty('password');
+  });
+
+  it('omits an unset optional User-Agent instead of uploading undefined', () => {
+    const profile = {
+      id: 'work',
+      name: 'Work',
+      isTemporary: false,
+      privacyLevel: 'balanced',
+      webrtcPolicy: 'default_public_interface_only',
+      proxy: { enabled: false, mode: 'direct', host: '', port: 8080 },
+      os: 'mac',
+      browserType: 'chrome',
+      browserVersion: '131.0.6778.86',
+      customUserAgent: undefined,
+      storagePath: '',
+      status: 'stopped',
+      lastUsedAt: null,
+      notes: '',
+      group: 'Default',
+      tags: [],
+      color: '#3b82f6',
+      createdAt: 100,
+      updatedAt: 100,
+    } satisfies Profile;
+
+    expect(serializeCloudProfile(profile)).not.toHaveProperty('customUserAgent');
   });
 });

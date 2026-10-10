@@ -336,7 +336,7 @@ export const CloudSyncPanel: React.FC<CloudSyncPanelProps> = ({
                 )}
                 <div className="settings-privacy-note">
                   <ShieldCheck size={17} />
-                  <p><strong>Your browsing data stays private.</strong> Profiles sync to your account. Proxy passwords and Chrome browsing data are never uploaded.</p>
+                  <p><strong>Privacy protections are best-effort.</strong> Known tracking domains and third-party cookies are restricted, but not every fingerprinting technique can be prevented. Profiles sync to your account; proxy passwords and Chrome browsing data are never uploaded.</p>
                 </div>
                 {error && <div className="settings-notice settings-notice--error" role="alert"><AlertTriangle size={17} /><p>{error}</p></div>}
               </div>

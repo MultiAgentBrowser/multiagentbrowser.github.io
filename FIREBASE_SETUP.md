@@ -21,6 +21,7 @@ The Firebase Web configuration is public client configuration, not a service-acc
 - Signing in downloads cloud profiles, merges profiles by ID using the newest `updatedAt`, then uploads the merged persistent profiles.
 - Profile additions and edits are uploaded while signed in. Use **Sync now** to merge again after using another device.
 - Temporary profiles are excluded.
+- Profiles may have an optional custom User-Agent string (up to 512 characters); when blank, the selected browser, version, and OS determine it. Deploy the current Firestore rules before syncing profiles with a custom User-Agent.
 - Proxy credentials remain on the device; a profile synced to another device needs its proxy username/password entered again.
 - Deleting a profile while signed in deletes its cloud document. If another device was offline during deletion, its stale local copy can be uploaded again when it next syncs.
 - The app does not open a default web page or start Chrome on launch. Create/select a profile and press **Start** to launch its separate Chrome process.

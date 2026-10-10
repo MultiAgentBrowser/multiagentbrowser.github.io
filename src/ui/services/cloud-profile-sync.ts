@@ -13,7 +13,8 @@ import { getFirebaseServices } from './firebase';
 export function serializeCloudProfile(profile: Profile) {
   const { proxy } = profile;
   const settings = Object.fromEntries(
-    Object.entries(profile).filter(([key]) =>
+    Object.entries(profile).filter(([key, value]) =>
+      value !== undefined &&
       !['proxy', 'storagePath', 'status', 'lastUsedAt'].includes(key)
     )
   );

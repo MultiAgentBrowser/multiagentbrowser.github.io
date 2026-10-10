@@ -53,6 +53,7 @@ export const ProfileSchema = z.object({
   os: z.enum(['mac', 'windows']).default('mac'),
   browserType: BrowserTypeSchema.default('chrome'),
   browserVersion: z.string().default('131.0.6778.86'),
+  customUserAgent: z.string().max(512).optional(),
   storagePath: z.string().default(''),
   status: z.enum(['stopped', 'running', 'crashed']).default('stopped'),
   lastUsedAt: z.number().nullable().default(null),

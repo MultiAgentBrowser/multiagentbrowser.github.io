@@ -23,6 +23,7 @@ export const ProfileRecordSchema = z.object({
   os: z.enum(['mac', 'windows']).default('mac'),
   browserType: z.enum(['chrome', 'edge', 'brave']).default('chrome'),
   browserVersion: z.string().min(1).max(64).default('131.0.6778.86'),
+  customUserAgent: z.string().max(512).refine((value) => !/[\r\n]/.test(value)).optional(),
   storagePath: z.string().default(''),
   status: z.enum(['stopped', 'running', 'crashed']).default('stopped'),
   lastUsedAt: z.number().nullable().default(null),
@@ -53,6 +54,7 @@ export interface CreateProfileDTO {
   os?: 'mac' | 'windows';
   browserType?: 'chrome' | 'edge' | 'brave';
   browserVersion?: string;
+  customUserAgent?: string;
   notes?: string;
   group?: string;
   tags?: string[];
@@ -67,6 +69,7 @@ export interface UpdateProfileDTO {
   os?: 'mac' | 'windows';
   browserType?: 'chrome' | 'edge' | 'brave';
   browserVersion?: string;
+  customUserAgent?: string;
   notes?: string;
   group?: string;
   tags?: string[];

@@ -40,6 +40,10 @@ export class BlocklistStore {
     'inspectlet.com',
     'luckyorange.com',
     'logentries.com',
+    'fingerprintjs.com',
+    'fpnpmcdn.net',
+    'fpjs.io',
+    'fingerprint.com',
 
     // Product Analytics & Telemetry
     'segment.io',
@@ -87,4 +91,3 @@ export class BlocklistStore {
     return false;
   }
 }
-

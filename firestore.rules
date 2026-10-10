@@ -17,6 +17,7 @@ rules_version = '2';
 //   - os: "mac" | "windows"
 //   - browserType: "chrome" | "edge" | "brave"
 //   - browserVersion: string, 1-64 characters
+//   - customUserAgent: optional string, at most 512 characters
 //   - notes: string, 0-10000 characters
 //   - group: string, 0-64 characters
 //   - tags: list, at most 20 strings, each at most 64 characters
@@ -50,6 +51,7 @@ service cloud.firestore {
         'os',
         'browserType',
         'browserVersion',
+        'customUserAgent',
         'notes',
         'group',
         'tags',
@@ -146,6 +148,10 @@ service cloud.firestore {
         && data.browserVersion is string
         && data.browserVersion.size() >= 1
         && data.browserVersion.size() <= 64
+        && (!('customUserAgent' in data)
+          || (data.customUserAgent is string
+            && data.customUserAgent.size() <= 512
+            && !data.customUserAgent.matches('.*[\\r\\n].*')))
         && data.notes is string
         && data.notes.size() <= 10000
         && data.group is string

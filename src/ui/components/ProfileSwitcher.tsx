@@ -59,6 +59,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   const [os, setOs] = useState<'mac' | 'windows'>('mac');
   const [browserType, setBrowserType] = useState<'chrome' | 'edge' | 'brave'>('chrome');
   const [browserVersion, setBrowserVersion] = useState<string>('131.0.6778.86');
+  const [customUserAgent, setCustomUserAgent] = useState('');
   const [color, setColor] = useState('#3b82f6');
   const [notes, setNotes] = useState('');
   const [privacyLevel, setPrivacyLevel] = useState<'standard' | 'balanced' | 'strict'>('balanced');
@@ -266,6 +267,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     setOs('mac');
     setBrowserType('chrome');
     setBrowserVersion('131.0.6778.86');
+    setCustomUserAgent('');
     setColor('#3b82f6');
     setNotes('');
     setPrivacyLevel('balanced');
@@ -291,6 +293,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     setOs((p as any).os || 'mac');
     setBrowserType((p as any).browserType || 'chrome');
     setBrowserVersion((p as any).browserVersion || '131.0.6778.86');
+    setCustomUserAgent(p.customUserAgent || '');
     setColor(p.color || '#3b82f6');
     setNotes((p as any).notes || '');
     setPrivacyLevel(p.privacyLevel);
@@ -365,6 +368,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
         os,
         browserType,
         browserVersion,
+        customUserAgent,
         notes,
         group,
         color,
@@ -382,6 +386,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
         os,
         browserType,
         browserVersion,
+        customUserAgent,
         notes,
         group,
         color,
@@ -1401,7 +1406,32 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
               </div>
 
               <div style={{ fontSize: 11, color: '#8b92a2', marginTop: -8 }}>
-                All profiles launch the bundled standalone Chromium browser. This setting changes only the browser identity websites see.
+                All profiles launch the bundled standalone Chromium browser.
+              </div>
+
+              <div>
+                <label htmlFor="custom-user-agent" style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
+                  Custom User-Agent (optional)
+                </label>
+                <input
+                  id="custom-user-agent"
+                  type="text"
+                  maxLength={512}
+                  value={customUserAgent}
+                  onChange={(event) => setCustomUserAgent(event.target.value)}
+                  placeholder="Leave blank to use the selected browser and version"
+                  style={{
+                    width: '100%',
+                    padding: '9px 10px',
+                    backgroundColor: '#12131b',
+                    border: '1px solid #2f3448',
+                    borderRadius: 8,
+                    color: '#ffffff',
+                    fontSize: 13,
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                  }}
+                />
               </div>
 
               {/* User-Agent Preview */}
@@ -1417,9 +1447,9 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                   wordBreak: 'break-all',
                 }}
               >
-                <span style={{ color: '#60a5fa', fontWeight: 600 }}>Emulated User-Agent: </span>
+                <span style={{ color: '#60a5fa', fontWeight: 600 }}>Effective User-Agent: </span>
                 <span style={{ color: '#d1d5db', fontFamily: 'monospace' }}>
-                  {getBrowserUserAgent(browserType, browserVersion, os)}
+                  {customUserAgent.trim() || getBrowserUserAgent(browserType, browserVersion, os)}
                 </span>
               </div>
 

@@ -61,3 +61,11 @@ export function getBrowserUserAgent(
   return `Mozilla/5.0 (${osString}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${version} Safari/537.36`;
 }
 
+export function getEffectiveUserAgent(
+  browserType: 'chrome' | 'edge' | 'brave',
+  version: string,
+  os: 'mac' | 'windows',
+  customUserAgent?: string
+): string {
+  return customUserAgent?.trim() || getBrowserUserAgent(browserType, version, os);
+}

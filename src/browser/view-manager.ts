@@ -3,7 +3,7 @@ import { ViewLayout } from './view-layout';
 import { NavigationController } from './navigation-controller';
 import { IPC_CHANNELS, TabInfo } from '../security/ipc-contracts';
 import path from 'path';
-import { createHash } from 'crypto';
+import { getProfileFingerprintSeed } from '../privacy/fingerprint/profile-fingerprint';
 
 export interface TabView {
   tabId: string;
@@ -94,23 +94,24 @@ export class ViewManager {
     const { ProfileStorage } = require('../profiles/profile-storage');
     const profiles = ProfileStorage.loadProfilesManifest();
     const currentProfile = profiles.find((p: any) => p.id === profileId);
-    // Keep the seed stable for this profile across tabs and app restarts, while
-    // avoiding passing the raw profile ID into the page preload.
-    const fingerprintSeed = createHash('sha256')
-      .update(`privacy-browser:fingerprint:${profileId}`)
-      .digest('hex');
+    const fingerprintSeed = getProfileFingerprintSeed(profileId);
 
     // Attach real-time tracker blocking & permission controls
     TrackerBlocker.attachTrackerBlocking(customSession, profileId);
     PermissionManager.attachPermissionHandlers(customSession, profileId);
 
-    const { getBrowserUserAgent } = require('../profiles/browser-definitions');
+    const { getEffectiveUserAgent } = require('../profiles/browser-definitions');
 
     if (currentProfile) {
       const browserType = currentProfile.browserType || 'chrome';
       const browserVersion = currentProfile.browserVersion || '131.0.6778.86';
       const os = currentProfile.os || 'mac';
-      const userAgent = getBrowserUserAgent(browserType, browserVersion, os);
+      const userAgent = getEffectiveUserAgent(
+        browserType,
+        browserVersion,
+        os,
+        currentProfile.customUserAgent
+      );
       customSession.setUserAgent(userAgent);
 
       WebRTCController.applyWebRTCPolicy(customSession, currentProfile.webrtcPolicy || 'default_public_interface_only');
@@ -316,4 +317,3 @@ export class ViewManager {
     }
   }
 }
-
