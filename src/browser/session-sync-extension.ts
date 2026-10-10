@@ -1,0 +1,163 @@
+import fs from 'fs';
+import path from 'path';
+
+export function createSessionSyncExtension(
+  targetDir: string,
+  profileId: string,
+  serverPort: number
+): string {
+  fs.mkdirSync(targetDir, { recursive: true });
+
+  const manifest = {
+    manifest_version: 3,
+    name: 'Multi Agent Session & Cookie Sync',
+    version: '1.0.0',
+    description: 'Synchronizes cookies and session resume state with Multi Agent.',
+    permissions: ['cookies', 'tabs', 'storage'],
+    host_permissions: ['<all_urls>', `http://127.0.0.1:${serverPort}/*`],
+    background: {
+      service_worker: 'background.js',
+    },
+  };
+
+  const backgroundJs = `
+const PROFILE_ID = ${JSON.stringify(profileId)};
+const SERVER_URL = "http://127.0.0.1:${serverPort}";
+
+let isRestoring = false;
+let syncTimeout = null;
+
+async function restoreSession() {
+  isRestoring = true;
+  try {
+    const res = await fetch(\`\${SERVER_URL}/api/session?profileId=\${encodeURIComponent(PROFILE_ID)}\`);
+    if (!res.ok) {
+      isRestoring = false;
+      return;
+    }
+    const data = await res.json();
+    const cookies = data.cookies || [];
+    const openUrls = data.openUrls || [];
+
+    // Inject cookies into Chromium
+    for (const c of cookies) {
+      try {
+        const domain = (c.domain || 'localhost').replace(/^\\./, '');
+        const protocol = c.secure ? 'https:' : 'http:';
+        const url = \`\${protocol}//\${domain}\${c.path || '/'}\`;
+
+        const details = {
+          url,
+          name: c.name,
+          value: c.value,
+          path: c.path || '/',
+          secure: !!c.secure,
+          httpOnly: !!c.httpOnly,
+        };
+
+        if (c.domain && !c.domain.startsWith('.')) {
+          details.domain = c.domain;
+        } else if (c.domain) {
+          details.domain = c.domain;
+        }
+
+        if (c.expirationDate && c.expirationDate > Date.now() / 1000) {
+          details.expirationDate = c.expirationDate;
+        }
+
+        if (c.sameSite && ['no_restriction', 'lax', 'strict'].includes(c.sameSite)) {
+          details.sameSite = c.sameSite;
+        }
+
+        await chrome.cookies.set(details);
+      } catch (e) {
+        // Ignore single cookie format errors
+      }
+    }
+
+    // If there were saved open URLs from where the browser exited, restore them if currently on empty newtab
+    if (openUrls.length > 0) {
+      chrome.tabs.query({}, (tabs) => {
+        const currentTabs = tabs || [];
+        const isOnlyNewTab = currentTabs.length <= 1 &&
+          (!currentTabs[0]?.url || currentTabs[0].url.startsWith('chrome://') || currentTabs[0].url.includes('duckduckgo.com'));
+
+        if (isOnlyNewTab) {
+          const firstUrl = openUrls[0];
+          if (currentTabs[0]?.id && firstUrl) {
+            chrome.tabs.update(currentTabs[0].id, { url: firstUrl });
+          }
+          for (let i = 1; i < openUrls.length; i++) {
+            chrome.tabs.create({ url: openUrls[i], active: false });
+          }
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('[SessionSync] Error restoring session:', err);
+  } finally {
+    isRestoring = false;
+  }
+}
+
+async function collectAndSync() {
+  if (isRestoring) return;
+
+  try {
+    const cookies = await chrome.cookies.getAll({});
+    const tabs = await chrome.tabs.query({});
+    const openUrls = tabs
+      .map((t) => t.url || '')
+      .filter((u) => u.startsWith('http://') || u.startsWith('https://'));
+
+    const payload = {
+      profileId: PROFILE_ID,
+      cookies: cookies.map((c) => ({
+        name: c.name,
+        value: c.value,
+        domain: c.domain,
+        path: c.path,
+        secure: c.secure,
+        httpOnly: c.httpOnly,
+        sameSite: c.sameSite,
+        expirationDate: c.expirationDate,
+      })),
+      openUrls,
+    };
+
+    await fetch(\`\${SERVER_URL}/api/session\`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    // Server might be busy or shutting down
+  }
+}
+
+function scheduleSync() {
+  if (syncTimeout) clearTimeout(syncTimeout);
+  syncTimeout = setTimeout(collectAndSync, 1000);
+}
+
+// Initial restore upon startup
+restoreSession().then(() => {
+  // Listen for changes
+  chrome.cookies.onChanged.addListener(scheduleSync);
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    if (changeInfo.url) scheduleSync();
+  });
+  chrome.tabs.onRemoved.addListener(scheduleSync);
+  chrome.tabs.onCreated.addListener(scheduleSync);
+
+  // Periodic heartbeat sync every 5 seconds
+  setInterval(collectAndSync, 5000);
+});
+`;
+
+  fs.writeFileSync(path.join(targetDir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf-8');
+  fs.writeFileSync(path.join(targetDir, 'background.js'), backgroundJs, 'utf-8');
+
+  return targetDir;
+}
+

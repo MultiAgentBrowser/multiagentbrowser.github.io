@@ -185,6 +185,21 @@ function registerIpcHandlers() {
     return CookieManager.importCookies(profileId, cookieData);
   });
 
+  ipcMain.handle(IPC_CHANNELS.PROFILE_GET_SAVED_SESSION, async (_event, { profileId }) => {
+    const { SessionSyncServer } = await import('../browser/session-sync-server');
+    return SessionSyncServer.getInstance().getSession(profileId);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.PROFILE_SET_SAVED_SESSION, async (_event, { profileId, session }) => {
+    const { SessionSyncServer } = await import('../browser/session-sync-server');
+    SessionSyncServer.getInstance().setSession(
+      profileId,
+      session?.cookies || [],
+      session?.openUrls || []
+    );
+    return true;
+  });
+
   ipcMain.handle(IPC_CHANNELS.STORAGE_CLEAR, async (_event, { profileId, categories }) => {
     const { StorageCleaner } = await import('../privacy/cookies/storage-cleaner');
     return StorageCleaner.clearProfileStorage(profileId, categories);

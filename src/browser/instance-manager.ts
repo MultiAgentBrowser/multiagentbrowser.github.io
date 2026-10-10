@@ -12,6 +12,8 @@ import { ProxyManager } from '../network/proxy/proxy-manager';
 import { getEffectiveUserAgent } from '../profiles/browser-definitions';
 import { ProfileStorage } from '../profiles/profile-storage';
 import { createFingerprintProtectionExtension } from '../privacy/fingerprint/fingerprint-extension';
+import { SessionSyncServer } from './session-sync-server';
+import { createSessionSyncExtension } from './session-sync-extension';
 
 export class BrowserInstanceManager {
   private static mainWindow: BrowserWindow | null = null;
@@ -53,7 +55,25 @@ export class BrowserInstanceManager {
     try {
       const { executablePath } = getBrowserExecutable(profile.browserType);
       const userDataPath = path.join(AppPaths.getProfileStorageDir(profileId), 'ChromiumProfileData');
-      fs.mkdirSync(userDataPath, { recursive: true });
+      const syncServer = SessionSyncServer.getInstance();
+      const syncPort = await syncServer.start();
+
+      // Ensure Chromium Default Preferences are configured to restore last session
+      const defaultDir = path.join(userDataPath, 'Default');
+      fs.mkdirSync(defaultDir, { recursive: true });
+      const prefsPath = path.join(defaultDir, 'Preferences');
+      try {
+        let prefs: any = {};
+        if (fs.existsSync(prefsPath)) {
+          prefs = JSON.parse(fs.readFileSync(prefsPath, 'utf-8'));
+        }
+        prefs.session = prefs.session || {};
+        prefs.session.restore_on_startup = 1; // 1 = Restore last session
+        fs.writeFileSync(prefsPath, JSON.stringify(prefs, null, 2), 'utf-8');
+      } catch {
+        // Non-blocking preference setup
+      }
+
       const proxyRules = ProxyManager.buildProxyRules(profile.proxy);
       const extensionPaths = [
         createFingerprintProtectionExtension(
@@ -62,13 +82,18 @@ export class BrowserInstanceManager {
           profile.os,
           profile.privacyLevel
         ),
+        createSessionSyncExtension(
+          path.join(userDataPath, 'SessionSyncExtension'),
+          profile.id,
+          syncPort
+        ),
       ];
 
       const args = [
         `--user-data-dir=${userDataPath}`,
         '--no-first-run',
         '--no-default-browser-check',
-        '--new-window',
+        '--restore-last-session',
         `--user-agent=${getEffectiveUserAgent(profile.browserType, profile.browserVersion, profile.os, profile.customUserAgent)}`,
         `--force-webrtc-ip-handling-policy=${profile.webrtcPolicy}`,
         `--proxy-server=${proxyRules}`,
@@ -86,7 +111,15 @@ export class BrowserInstanceManager {
 
       args.push(`--load-extension=${extensionPaths.join(',')}`);
       args.push(`--disable-extensions-except=${extensionPaths.join(',')}`);
-      args.push('https://duckduckgo.com');
+
+      // If there is no previous session, open default URL
+      const sessionData = syncServer.getSession(profileId);
+      const hasResumeSession = (sessionData?.openUrls && sessionData.openUrls.length > 0) ||
+        fs.existsSync(path.join(defaultDir, 'Sessions'));
+
+      if (!hasResumeSession) {
+        args.push('https://duckduckgo.com');
+      }
 
       const child = spawn(executablePath, args, { detached: true, stdio: 'ignore' });
       return await new Promise((resolve, reject) => {
@@ -117,7 +150,20 @@ export class BrowserInstanceManager {
             : ProfileLock.release(profileId);
           if (lockReleased) {
             this.profileManager?.updateProfileStatus(profileId, code === 0 || signal !== null ? 'stopped' : 'crashed');
-            if (profile.isTemporary) ProfileStorage.deleteProfileDirectory(profileId);
+            if (profile.isTemporary) {
+              ProfileStorage.deleteProfileDirectory(profileId);
+            } else {
+              // Capture and broadcast latest cookies and open tabs for cloud sync
+              const finalSession = syncServer.getSession(profileId);
+              syncServer.saveSessionToDisk(profileId, finalSession.cookies, finalSession.openUrls);
+              if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+                this.mainWindow.webContents.send(IPC_CHANNELS.PROFILE_SESSION_EXITED, {
+                  profileId,
+                  cookies: finalSession.cookies,
+                  openUrls: finalSession.openUrls,
+                });
+              }
+            }
             this.broadcastRunningProfiles();
           }
           if (code !== 0 && signal === null) {

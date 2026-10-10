@@ -26,7 +26,16 @@ rules_version = '2';
 //   - updatedAt: epoch milliseconds, monotonic on update
 //
 // Local paths, browser runtime state, proxy credentials, browsing history,
-// cookies, and Chrome profile contents are not stored in these documents.
+// and Chrome profile contents are not stored in these documents.
+//
+// Collection: users/{userId}/profile_cookies
+// Document ID: profileId, 1-128 ASCII letters, digits, "_" or "-"
+// Fields (all required):
+//   - profileId: string, equal to document ID (immutable)
+//   - updatedAt: non-negative epoch milliseconds, monotonic on update
+//   - count: non-negative integer (>= 0)
+//   - cookiesJson: string, serialized cookies array, at most 1048576 bytes
+//   - openUrls: list of strings, at most 50 items, each at most 2048 chars
 //
 // ===============================================================
 
@@ -167,6 +176,103 @@ service cloud.firestore {
         && data.updatedAt <= 4102444800000;
     }
 
+    function hasOnlyAllowedProfileCookiesFields(data) {
+      return data.keys().hasOnly([
+        'profileId',
+        'updatedAt',
+        'count',
+        'cookiesJson',
+        'openUrls'
+      ]);
+    }
+
+    function hasRequiredProfileCookiesFields(data) {
+      return data.keys().hasAll([
+        'profileId',
+        'updatedAt',
+        'count',
+        'cookiesJson',
+        'openUrls'
+      ]);
+    }
+
+    function isValidOpenUrl(url) {
+      return url is string && url.size() <= 2048;
+    }
+
+    function isValidOpenUrls(urls) {
+      return urls is list
+        && urls.size() <= 50
+        && (urls.size() < 1 || isValidOpenUrl(urls[0]))
+        && (urls.size() < 2 || isValidOpenUrl(urls[1]))
+        && (urls.size() < 3 || isValidOpenUrl(urls[2]))
+        && (urls.size() < 4 || isValidOpenUrl(urls[3]))
+        && (urls.size() < 5 || isValidOpenUrl(urls[4]))
+        && (urls.size() < 6 || isValidOpenUrl(urls[5]))
+        && (urls.size() < 7 || isValidOpenUrl(urls[6]))
+        && (urls.size() < 8 || isValidOpenUrl(urls[7]))
+        && (urls.size() < 9 || isValidOpenUrl(urls[8]))
+        && (urls.size() < 10 || isValidOpenUrl(urls[9]))
+        && (urls.size() < 11 || isValidOpenUrl(urls[10]))
+        && (urls.size() < 12 || isValidOpenUrl(urls[11]))
+        && (urls.size() < 13 || isValidOpenUrl(urls[12]))
+        && (urls.size() < 14 || isValidOpenUrl(urls[13]))
+        && (urls.size() < 15 || isValidOpenUrl(urls[14]))
+        && (urls.size() < 16 || isValidOpenUrl(urls[15]))
+        && (urls.size() < 17 || isValidOpenUrl(urls[16]))
+        && (urls.size() < 18 || isValidOpenUrl(urls[17]))
+        && (urls.size() < 19 || isValidOpenUrl(urls[18]))
+        && (urls.size() < 20 || isValidOpenUrl(urls[19]))
+        && (urls.size() < 21 || isValidOpenUrl(urls[20]))
+        && (urls.size() < 22 || isValidOpenUrl(urls[21]))
+        && (urls.size() < 23 || isValidOpenUrl(urls[22]))
+        && (urls.size() < 24 || isValidOpenUrl(urls[23]))
+        && (urls.size() < 25 || isValidOpenUrl(urls[24]))
+        && (urls.size() < 26 || isValidOpenUrl(urls[25]))
+        && (urls.size() < 27 || isValidOpenUrl(urls[26]))
+        && (urls.size() < 28 || isValidOpenUrl(urls[27]))
+        && (urls.size() < 29 || isValidOpenUrl(urls[28]))
+        && (urls.size() < 30 || isValidOpenUrl(urls[29]))
+        && (urls.size() < 31 || isValidOpenUrl(urls[30]))
+        && (urls.size() < 32 || isValidOpenUrl(urls[31]))
+        && (urls.size() < 33 || isValidOpenUrl(urls[32]))
+        && (urls.size() < 34 || isValidOpenUrl(urls[33]))
+        && (urls.size() < 35 || isValidOpenUrl(urls[34]))
+        && (urls.size() < 36 || isValidOpenUrl(urls[35]))
+        && (urls.size() < 37 || isValidOpenUrl(urls[36]))
+        && (urls.size() < 38 || isValidOpenUrl(urls[37]))
+        && (urls.size() < 39 || isValidOpenUrl(urls[38]))
+        && (urls.size() < 40 || isValidOpenUrl(urls[39]))
+        && (urls.size() < 41 || isValidOpenUrl(urls[40]))
+        && (urls.size() < 42 || isValidOpenUrl(urls[41]))
+        && (urls.size() < 43 || isValidOpenUrl(urls[42]))
+        && (urls.size() < 44 || isValidOpenUrl(urls[43]))
+        && (urls.size() < 45 || isValidOpenUrl(urls[44]))
+        && (urls.size() < 46 || isValidOpenUrl(urls[45]))
+        && (urls.size() < 47 || isValidOpenUrl(urls[46]))
+        && (urls.size() < 48 || isValidOpenUrl(urls[47]))
+        && (urls.size() < 49 || isValidOpenUrl(urls[48]))
+        && (urls.size() < 50 || isValidOpenUrl(urls[49]));
+    }
+
+    // Shared schema validator for profile_cookies collection
+    function isValidProfileCookies(profileId) {
+      let data = request.resource.data;
+      return hasOnlyAllowedProfileCookiesFields(data)
+        && hasRequiredProfileCookiesFields(data)
+        && data.profileId is string
+        && data.profileId == profileId
+        && profileId.matches('^[a-zA-Z0-9_-]{1,128}$')
+        && data.updatedAt is int
+        && data.updatedAt >= 0
+        && data.updatedAt <= 4102444800000
+        && data.count is int
+        && data.count >= 0
+        && data.cookiesJson is string
+        && data.cookiesJson.size() <= 1048576
+        && isValidOpenUrls(data.openUrls);
+    }
+
     match /users/{userId}/profiles/{profileId} {
       allow get, list: if isOwner(userId);
       allow create: if isOwner(userId) && isValidProfile(profileId);
@@ -175,6 +281,16 @@ service cloud.firestore {
         && request.resource.data.id == resource.data.id
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.isTemporary == resource.data.isTemporary
+        && request.resource.data.updatedAt >= resource.data.updatedAt;
+      allow delete: if isOwner(userId);
+    }
+
+    match /users/{userId}/profile_cookies/{profileId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidProfileCookies(profileId);
+      allow update: if isOwner(userId)
+        && isValidProfileCookies(profileId)
+        && request.resource.data.profileId == resource.data.profileId
         && request.resource.data.updatedAt >= resource.data.updatedAt;
       allow delete: if isOwner(userId);
     }

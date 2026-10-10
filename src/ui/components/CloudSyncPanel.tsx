@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { getFirebaseServices, isFirebaseConfigured } from '../services/firebase';
 import { getSignInErrorMessage } from '../services/auth-error-message';
-import { deleteProfileFromCloud, saveProfileToCloud, syncProfilesFromCloud } from '../services/cloud-profile-sync';
+import { deleteProfileFromCloud, saveProfileCookiesToCloud, saveProfileToCloud, syncProfilesFromCloud } from '../services/cloud-profile-sync';
 import appLogo from '../../../build/icon.svg';
 
 interface CloudSyncPanelProps {
@@ -106,7 +106,7 @@ export const CloudSyncPanel: React.FC<CloudSyncPanelProps> = ({
 
   useEffect(() => {
     if (!user) return;
-    return window.browserAPI.onProfileSyncChanged((change) => {
+    const unsubProfile = window.browserAPI.onProfileSyncChanged((change) => {
       setBusy(true);
       setError('');
       const operation = change.type === 'delete'
@@ -121,6 +121,22 @@ export const CloudSyncPanel: React.FC<CloudSyncPanelProps> = ({
         .catch((syncError: unknown) => setError(syncError instanceof Error ? syncError.message : String(syncError)))
         .finally(() => setBusy(false));
     });
+
+    const unsubSession = window.browserAPI.onProfileSessionExited?.((sessionExit) => {
+      saveProfileCookiesToCloud(
+        user,
+        sessionExit.profileId,
+        sessionExit.cookies || [],
+        sessionExit.openUrls || []
+      )
+        .then(() => setStatus(`Cloud saved: ${sessionExit.cookies?.length || 0} cookies & session state`))
+        .catch((err) => console.warn('Failed to sync cookies to cloud on exit:', err));
+    });
+
+    return () => {
+      unsubProfile?.();
+      unsubSession?.();
+    };
   }, [user]);
 
   const handleSubmit = async (event: FormEvent) => {

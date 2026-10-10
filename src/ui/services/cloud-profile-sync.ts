@@ -1,6 +1,7 @@
 import { User } from 'firebase/auth';
 import {
   doc,
+  getDoc,
   getFirestore,
   setDoc,
   writeBatch,
@@ -88,12 +89,50 @@ export async function syncProfilesFromCloud(user: User): Promise<Profile[]> {
     await cleanupBatch.commit();
   }
 
-  // The signed-in account's cloud collection is authoritative. Never merge
-  // device-local profiles here: they may belong to a different account.
-  // These records already came from Firestore, so don't write them back during
-  // login. A redundant write can fail under stricter deployed rules and block
-  // accounts that already have profiles from reaching the dashboard.
-  return window.browserAPI.replaceCloudProfiles(remoteProfiles);
+  // When profiles are synced, also restore cookies for each profile
+  const localProfiles = await window.browserAPI.listProfiles();
+  const persistentLocalProfiles = (localProfiles || []).filter((p) => {
+    if (p.isTemporary) return false;
+    if (demoProfileIds.includes(p.id)) return false;
+    const lowerName = (p.name || '').trim().toLowerCase();
+    return (
+      lowerName !== 'keep me' &&
+      lowerName !== 'temporary session' &&
+      lowerName !== 'running temporary' &&
+      !lowerName.startsWith('demo')
+    );
+  });
+
+  // If cloud has no profiles, but we have persistent local profiles on this device:
+  // Upload local profiles to cloud rather than wiping local profiles!
+  let accountProfiles: Profile[] = [];
+  if (remoteProfiles.length === 0) {
+    if (persistentLocalProfiles.length > 0) {
+      for (const p of persistentLocalProfiles) {
+        await saveProfileToCloud(user, p);
+      }
+      accountProfiles = persistentLocalProfiles;
+    } else {
+      accountProfiles = await window.browserAPI.replaceCloudProfiles([]);
+    }
+  } else {
+    // Merge remote profiles with any local profiles not yet in cloud
+    const remoteIdSet = new Set(remoteProfiles.map((p) => p.id));
+    const unSyncedLocalProfiles = persistentLocalProfiles.filter((p) => !remoteIdSet.has(p.id));
+    const mergedProfiles = [...remoteProfiles, ...unSyncedLocalProfiles];
+    accountProfiles = await window.browserAPI.replaceCloudProfiles(mergedProfiles);
+  }
+
+  // Restore cloud cookies for all synced profiles
+  for (const p of accountProfiles) {
+    try {
+      await restoreProfileCookiesFromCloud(user, p.id);
+    } catch {
+      // Non-blocking
+    }
+  }
+
+  return accountProfiles;
 }
 
 export async function saveProfileToCloud(user: User, profile: Profile): Promise<void> {
@@ -109,5 +148,71 @@ export async function deleteProfileFromCloud(user: User, profileId: string): Pro
   const { db } = getFirebaseServices();
   const batch = writeBatch(db);
   batch.delete(doc(db, 'users', user.uid, 'profiles', profileId));
+  batch.delete(doc(db, 'users', user.uid, 'profile_cookies', profileId));
   await batch.commit();
+}
+
+export async function saveProfileCookiesToCloud(
+  user: User,
+  profileId: string,
+  cookies: any[],
+  openUrls: string[] = []
+): Promise<void> {
+  const { db } = getFirebaseServices();
+  const cleanCookies = Array.isArray(cookies) ? cookies : [];
+  const cleanUrls = (Array.isArray(openUrls) ? openUrls : [])
+    .slice(0, 50)
+    .map((u) => String(u).slice(0, 2048));
+
+  // Serialize cookies to JSON string, keeping within 1MB bounds
+  let cookiesJson = JSON.stringify(cleanCookies);
+  if (cookiesJson.length > 1048576) {
+    // If over 1MB, reduce cookie list
+    const trimmed = cleanCookies.slice(0, Math.floor(cleanCookies.length * 0.8));
+    cookiesJson = JSON.stringify(trimmed);
+  }
+  const safeCookiesJson = cookiesJson.slice(0, 1048576);
+
+  await setDoc(doc(db, 'users', user.uid, 'profile_cookies', profileId), {
+    profileId,
+    updatedAt: Date.now(),
+    count: cleanCookies.length,
+    cookiesJson: safeCookiesJson,
+    openUrls: cleanUrls,
+  });
+}
+
+export async function fetchProfileCookiesFromCloud(
+  user: User,
+  profileId: string
+): Promise<{ cookies: any[]; openUrls: string[] } | null> {
+  const { db } = getFirebaseServices();
+  const docRef = doc(db, 'users', user.uid, 'profile_cookies', profileId);
+  const snapshot = await getDoc(docRef);
+  if (!snapshot.exists()) {
+    return null;
+  }
+  const data = snapshot.data();
+  try {
+    const cookies = JSON.parse(data.cookiesJson || '[]');
+    const openUrls = Array.isArray(data.openUrls) ? data.openUrls : [];
+    return { cookies, openUrls };
+  } catch {
+    return null;
+  }
+}
+
+export async function restoreProfileCookiesFromCloud(
+  user: User,
+  profileId: string
+): Promise<boolean> {
+  const cloudData = await fetchProfileCookiesFromCloud(user, profileId);
+  if (cloudData && window.browserAPI) {
+    await window.browserAPI.saveSavedSession(profileId, cloudData);
+    if (cloudData.cookies.length > 0) {
+      await window.browserAPI.importCookies(profileId, JSON.stringify(cloudData.cookies));
+    }
+    return true;
+  }
+  return false;
 }
