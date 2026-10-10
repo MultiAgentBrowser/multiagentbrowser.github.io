@@ -172,6 +172,7 @@ export const CloudSyncPanel: React.FC<CloudSyncPanelProps> = ({
 
   const handleSignOut = async () => {
     if (!user) return;
+    setIsOpen(false);
     setBusy(true);
     setError('');
     onAuthStateChanged('checking');
@@ -189,16 +190,22 @@ export const CloudSyncPanel: React.FC<CloudSyncPanelProps> = ({
 
   const blockingSignIn = required && !user;
   const blockingSync = required && Boolean(user);
-  const showDialog = isOpen || (required && authResolved && (!user || Boolean(error)));
+  const showBlockingDialog = required && authResolved;
+  const showSettingsDialog = !required && Boolean(user) && isOpen;
+  const showDialog = showBlockingDialog || showSettingsDialog;
 
   useEffect(() => {
-    if (!showDialog || required) return;
+    if (required) {
+      setIsOpen(false);
+      return;
+    }
+    if (!showSettingsDialog) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setIsOpen(false);
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [required, showDialog]);
+  }, [required, showSettingsDialog]);
 
   return (
     <>
@@ -216,9 +223,9 @@ export const CloudSyncPanel: React.FC<CloudSyncPanelProps> = ({
       )}
       {showDialog && (
         <div
-          className={`settings-overlay${required ? ' settings-overlay--blocking' : ''}`}
+          className={`settings-overlay${showBlockingDialog ? ' settings-overlay--blocking' : ''}`}
           onClick={() => {
-            if (!required) setIsOpen(false);
+            if (showSettingsDialog) setIsOpen(false);
           }}
         >
           <section

@@ -48,20 +48,6 @@ function parseCloudProfile(id: string, data: Record<string, unknown>): Profile {
   return parsed;
 }
 
-async function saveProfiles(db: ReturnType<typeof getFirestore>, userId: string, profiles: Profile[]): Promise<void> {
-  const persistentProfiles = profiles.filter((profile) => !profile.isTemporary);
-  for (let offset = 0; offset < persistentProfiles.length; offset += 450) {
-    const batch = writeBatch(db);
-    for (const profile of persistentProfiles.slice(offset, offset + 450)) {
-      batch.set(
-        doc(db, 'users', userId, 'profiles', profile.id),
-        serializeCloudProfile(profile)
-      );
-    }
-    await batch.commit();
-  }
-}
-
 export async function syncProfilesFromCloud(user: User): Promise<Profile[]> {
   const { db } = getFirebaseServices();
   const demoBatch = writeBatch(db);
@@ -104,9 +90,10 @@ export async function syncProfilesFromCloud(user: User): Promise<Profile[]> {
 
   // The signed-in account's cloud collection is authoritative. Never merge
   // device-local profiles here: they may belong to a different account.
-  const accountProfiles = await window.browserAPI.replaceCloudProfiles(remoteProfiles);
-  await saveProfiles(db, user.uid, accountProfiles);
-  return accountProfiles;
+  // These records already came from Firestore, so don't write them back during
+  // login. A redundant write can fail under stricter deployed rules and block
+  // accounts that already have profiles from reaching the dashboard.
+  return window.browserAPI.replaceCloudProfiles(remoteProfiles);
 }
 
 export async function saveProfileToCloud(user: User, profile: Profile): Promise<void> {
