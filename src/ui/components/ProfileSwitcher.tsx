@@ -26,6 +26,7 @@ import {
   Cookie,
   FileText,
   Bookmark,
+  Layers,
 } from 'lucide-react';
 import { Profile, ProxyConfig, SavedProxy } from '../../security/ipc-contracts';
 import { getBrowserUserAgent } from '../../profiles/browser-definitions';
@@ -65,6 +66,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   const [privacyLevel, setPrivacyLevel] = useState<'standard' | 'balanced' | 'strict'>('balanced');
   const [webrtcPolicy, setWebrtcPolicy] = useState<'default' | 'default_public_interface_only' | 'disable_non_proxied_udp'>('default_public_interface_only');
   const [isTemporary, setIsTemporary] = useState(false);
+  const [remoteDebuggingPort, setRemoteDebuggingPort] = useState<number | ''>('');
 
   // Proxy form fields
   const [proxyEnabled, setProxyEnabled] = useState(false);
@@ -79,7 +81,15 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
 
   // Proxy test and rotation state
   const [testingProxy, setTestingProxy] = useState(false);
-  const [proxyTestResult, setProxyTestResult] = useState<{ success: boolean; latencyMs?: number; error?: string } | null>(null);
+  const [proxyTestResult, setProxyTestResult] = useState<{
+    success: boolean;
+    latencyMs?: number;
+    ip?: string;
+    country?: string;
+    city?: string;
+    timezone?: string;
+    error?: string;
+  } | null>(null);
   const [rotatingProfileId, setRotatingProfileId] = useState<string | null>(null);
 
   // Import JSON drawer
@@ -92,6 +102,16 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   const [cookieModalFormat, setCookieModalFormat] = useState<'json' | 'netscape'>('json');
   const [cookieImportText, setCookieImportText] = useState('');
   const [cookieStatusMsg, setCookieStatusMsg] = useState('');
+
+  // Bulk Profile Creator state
+  const [showBulkCreateModal, setShowBulkCreateModal] = useState(false);
+  const [bulkCount, setBulkCount] = useState(5);
+  const [bulkPrefix, setBulkPrefix] = useState('Account');
+  const [bulkGroup, setBulkGroup] = useState('Default');
+  const [bulkOs, setBulkOs] = useState<'mac' | 'windows'>('mac');
+  const [bulkBrowser, setBulkBrowser] = useState<'chrome' | 'edge' | 'brave'>('chrome');
+  const [bulkProxiesText, setBulkProxiesText] = useState('');
+  const [isBulkCreating, setIsBulkCreating] = useState(false);
 
   // Fetch running profiles
   useEffect(() => {
@@ -305,6 +325,83 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     }
   };
 
+  const handleBulkCreateSubmit = async () => {
+    if (!isAuthenticated || !window.browserAPI || isBulkCreating) return;
+    setIsBulkCreating(true);
+
+    try {
+      // Parse optional proxy lines: host:port or host:port:user:pass or socks5://...
+      const rawLines = bulkProxiesText
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean);
+
+      const parsedProxies = rawLines.map((line) => {
+        // Check url pattern
+        try {
+          if (line.includes('://')) {
+            const u = new URL(line);
+            return {
+              enabled: true,
+              mode: (u.protocol.replace(':', '') as any) || 'socks5',
+              host: u.hostname,
+              port: Number(u.port) || 8080,
+              username: u.username || undefined,
+              password: u.password || undefined,
+            };
+          }
+        } catch {}
+
+        // Fallback to host:port[:user:pass]
+        const parts = line.split(':');
+        if (parts.length >= 2) {
+          return {
+            enabled: true,
+            mode: 'socks5' as const,
+            host: parts[0],
+            port: Number(parts[1]) || 8080,
+            username: parts[2] || undefined,
+            password: parts[3] || undefined,
+          };
+        }
+        return null;
+      }).filter(Boolean);
+
+      const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4'];
+
+      for (let i = 1; i <= bulkCount; i++) {
+        const assignedProxy = parsedProxies.length > 0
+          ? parsedProxies[(i - 1) % parsedProxies.length]
+          : { enabled: false, mode: 'direct' as const, host: '', port: 8080 };
+
+        const profileName = `${bulkPrefix.trim() || 'Account'} ${i}`;
+        const color = colors[(i - 1) % colors.length];
+
+        await window.browserAPI.createProfile({
+          name: profileName,
+          isTemporary: false,
+          privacyLevel: 'balanced',
+          webrtcPolicy: 'default_public_interface_only',
+          proxy: assignedProxy as any,
+          os: bulkOs,
+          browserType: bulkBrowser,
+          browserVersion: '150.0.0.0',
+          notes: `Batch created in folder: ${bulkGroup}`,
+          group: bulkGroup.trim() || 'Default',
+          color,
+        } as any);
+      }
+
+      setShowBulkCreateModal(false);
+      setBulkProxiesText('');
+      onRefreshProfiles();
+    } catch (err: any) {
+      alert(`Bulk create encountered an issue: ${err.message}`);
+    } finally {
+      setIsBulkCreating(false);
+    }
+  };
+
   const handleOpenCreate = () => {
     if (!isAuthenticated) return;
     setEditingProfileId(null);
@@ -328,6 +425,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     setChangeIpUrl('');
     setSelectedSavedProxyId('');
     setProxyTestResult(null);
+    setRemoteDebuggingPort('');
     setIsCreateOpen(true);
   };
 
@@ -345,6 +443,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     setPrivacyLevel(p.privacyLevel);
     setWebrtcPolicy(p.webrtcPolicy);
     setIsTemporary(p.isTemporary);
+    setRemoteDebuggingPort((p as any).remoteDebuggingPort || '');
     setProxyEnabled(p.proxy.enabled);
     setProxyMode(p.proxy.mode);
     setProxyHost(p.proxy.host);
@@ -418,6 +517,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
         notes,
         group,
         color,
+        remoteDebuggingPort: remoteDebuggingPort ? Number(remoteDebuggingPort) : undefined,
       } as any);
       if (andLaunch) {
         await handleLaunch(editingProfileId);
@@ -436,6 +536,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
         notes,
         group,
         color,
+        remoteDebuggingPort: remoteDebuggingPort ? Number(remoteDebuggingPort) : undefined,
       } as any);
 
       if (andLaunch && created && (window.browserAPI as any).launchProfile) {
@@ -595,6 +696,27 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
             >
               <Upload size={14} />
               Import
+            </button>
+
+            <button
+              disabled={!isAuthenticated}
+              onClick={() => setShowBulkCreateModal(true)}
+              title={!isAuthenticated ? 'Sign in to bulk create profiles' : 'Bulk Create Profiles'}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 14px',
+                backgroundColor: '#222533',
+                border: '1px solid #33384c',
+                borderRadius: 8,
+                color: '#38bdf8',
+                fontSize: 12,
+                cursor: 'pointer',
+              }}
+            >
+              <Layers size={14} />
+              Bulk Create
             </button>
 
             <button
@@ -1724,15 +1846,28 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                       <div
                         style={{
                           fontSize: 11,
-                          padding: '6px 10px',
+                          padding: '8px 12px',
                           borderRadius: 6,
-                          backgroundColor: proxyTestResult.success ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                          backgroundColor: proxyTestResult.success ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.15)',
+                          border: `1px solid ${proxyTestResult.success ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
                           color: proxyTestResult.success ? '#34d399' : '#f87171',
                         }}
                       >
-                        {proxyTestResult.success
-                          ? `✓ Connection successful! Latency: ${proxyTestResult.latencyMs}ms`
-                          : `✗ Connection failed: ${proxyTestResult.error}`}
+                        {proxyTestResult.success ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            <div style={{ fontWeight: 600 }}>
+                              ✓ Connection active · Ping: {proxyTestResult.latencyMs}ms
+                            </div>
+                            {(proxyTestResult.country || proxyTestResult.city || proxyTestResult.timezone) && (
+                              <div style={{ color: '#cbd5e1', fontSize: 10 }}>
+                                📍 Location: {[proxyTestResult.city, proxyTestResult.country].filter(Boolean).join(', ')}
+                                {proxyTestResult.timezone ? ` · 🕒 Timezone: ${proxyTestResult.timezone}` : ''}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div>✗ Connection failed: {proxyTestResult.error}</div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1787,6 +1922,36 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                     <option value="disable_non_proxied_udp">Disable Non-Proxied UDP</option>
                     <option value="default">Default Chromium</option>
                   </select>
+                </div>
+              </div>
+
+              {/* Automation / Remote Debugging Port */}
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 4 }}>
+                  Automation Remote Debugging Port (Puppeteer / Playwright)
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <input
+                    type="number"
+                    placeholder="e.g. 9222 (Optional)"
+                    value={remoteDebuggingPort}
+                    onChange={(e) => setRemoteDebuggingPort(e.target.value ? Number(e.target.value) : '')}
+                    min={1024}
+                    max={65535}
+                    style={{
+                      width: 200,
+                      padding: '8px 10px',
+                      backgroundColor: '#12131b',
+                      border: '1px solid #2f3448',
+                      borderRadius: 8,
+                      color: '#ffffff',
+                      fontSize: 12,
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                  <span style={{ fontSize: 11, color: '#64748b' }}>
+                    Leave blank to disable automation port
+                  </span>
                 </div>
               </div>
 
@@ -2073,6 +2238,250 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                 }}
               >
                 Import Cookies
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Profile Creator Modal */}
+      {showBulkCreateModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(4px)',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#181a24',
+              borderRadius: 12,
+              width: 540,
+              maxWidth: '90vw',
+              border: '1px solid #2d3348',
+              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.6)',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                padding: '16px 20px',
+                borderBottom: '1px solid #262a3c',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Layers size={18} color="#38bdf8" />
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#ffffff' }}>
+                  Bulk Profile Creator
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowBulkCreateModal(false)}
+                style={{ background: 'none', border: 'none', color: '#8b92a2', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
+                    Number of Profiles
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={bulkCount}
+                    onChange={(e) => setBulkCount(Math.max(1, Math.min(50, Number(e.target.value) || 1)))}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      backgroundColor: '#10121a',
+                      border: '1px solid #282d40',
+                      borderRadius: 6,
+                      color: '#ffffff',
+                      fontSize: 13,
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                <div style={{ flex: 2 }}>
+                  <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
+                    Profile Name Prefix
+                  </label>
+                  <input
+                    type="text"
+                    value={bulkPrefix}
+                    onChange={(e) => setBulkPrefix(e.target.value)}
+                    placeholder="Account"
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      backgroundColor: '#10121a',
+                      border: '1px solid #282d40',
+                      borderRadius: 6,
+                      color: '#ffffff',
+                      fontSize: 13,
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
+                    Folder / Group
+                  </label>
+                  <input
+                    type="text"
+                    value={bulkGroup}
+                    onChange={(e) => setBulkGroup(e.target.value)}
+                    placeholder="Default"
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      backgroundColor: '#10121a',
+                      border: '1px solid #282d40',
+                      borderRadius: 6,
+                      color: '#ffffff',
+                      fontSize: 13,
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
+                    OS Platform
+                  </label>
+                  <select
+                    value={bulkOs}
+                    onChange={(e: any) => setBulkOs(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      backgroundColor: '#10121a',
+                      border: '1px solid #282d40',
+                      borderRadius: 6,
+                      color: '#ffffff',
+                      fontSize: 13,
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <option value="mac">macOS</option>
+                    <option value="windows">Windows</option>
+                  </select>
+                </div>
+
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
+                    Browser Engine
+                  </label>
+                  <select
+                    value={bulkBrowser}
+                    onChange={(e: any) => setBulkBrowser(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      backgroundColor: '#10121a',
+                      border: '1px solid #282d40',
+                      borderRadius: 6,
+                      color: '#ffffff',
+                      fontSize: 13,
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <option value="chrome">Chrome</option>
+                    <option value="brave">Brave</option>
+                    <option value="edge">Edge</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 4 }}>
+                  Proxy List (Optional, one per line):
+                </label>
+                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>
+                  Formats: <code>host:port</code> or <code>host:port:user:pass</code> or <code>socks5://user:pass@host:port</code>
+                </div>
+                <textarea
+                  rows={4}
+                  value={bulkProxiesText}
+                  onChange={(e) => setBulkProxiesText(e.target.value)}
+                  placeholder="192.168.1.100:8080&#10;192.168.1.101:8080:username:password"
+                  style={{
+                    width: '100%',
+                    backgroundColor: '#10121a',
+                    border: '1px solid #282d40',
+                    borderRadius: 6,
+                    color: '#ffffff',
+                    padding: 8,
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+            </div>
+
+            <div
+              style={{
+                padding: '12px 20px',
+                borderTop: '1px solid #282c3e',
+                backgroundColor: '#13141c',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 8,
+              }}
+            >
+              <button
+                onClick={() => setShowBulkCreateModal(false)}
+                style={{
+                  padding: '6px 14px',
+                  backgroundColor: '#232635',
+                  border: '1px solid #33384c',
+                  borderRadius: 6,
+                  color: '#9ba1b0',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkCreateSubmit}
+                disabled={isBulkCreating}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 18px',
+                  backgroundColor: '#3b82f6',
+                  border: 'none',
+                  borderRadius: 6,
+                  color: '#fff',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {isBulkCreating ? <Loader2 size={13} className="animate-spin" /> : <Layers size={13} />}
+                Generate {bulkCount} Profiles
               </button>
             </div>
           </div>

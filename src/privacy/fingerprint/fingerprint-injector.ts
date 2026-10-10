@@ -139,6 +139,27 @@ export class FingerprintInjector {
       };
     }
   } catch (e) {}
+
+  // 7. System Fonts Masking & Detection Spoofing
+  try {
+    const ALLOWED_FONTS = ['Arial', 'Helvetica', 'Times New Roman', 'Courier New', 'Verdana', 'Georgia', 'Trebuchet MS', 'Impact'];
+    if (document.fonts && document.fonts.check) {
+      const origCheck = document.fonts.check.bind(document.fonts);
+      document.fonts.check = function(font, text) {
+        const fontName = font.replace(/^[0-9]+px\\s+/, '').replace(/['"]/g, '').trim();
+        if (ALLOWED_FONTS.some((f) => f.toLowerCase() === fontName.toLowerCase())) {
+          return true;
+        }
+        return false;
+      };
+    }
+  } catch (e) {}
+
+  // 8. Screen Dimensions & Color Depth Consistency
+  try {
+    Object.defineProperty(Screen.prototype, 'colorDepth', { get: () => 24, configurable: true });
+    Object.defineProperty(Screen.prototype, 'pixelDepth', { get: () => 24, configurable: true });
+  } catch (e) {}
 })();
 `;
   }

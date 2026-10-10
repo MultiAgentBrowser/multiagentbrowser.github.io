@@ -61,6 +61,7 @@ export const ProfileSchema = z.object({
   group: z.string().default('Default'),
   tags: z.array(z.string()).default([]),
   color: z.string().default('#3b82f6'),
+  remoteDebuggingPort: z.number().int().min(1024).max(65535).optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
 });

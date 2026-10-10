@@ -47,5 +47,16 @@ describe('Phase 1 & Phase 3: Proxy Pool, Rotation and Cookie Manager', () => {
     const res = await ProxyTester.rotateProxyIp('http://127.0.0.1:54321/change-ip');
     expect(res.success).toBe(false);
   });
+
+  it('fails gracefully when proxy connection is disabled or empty', async () => {
+    const res = await ProxyTester.testConnection({
+      enabled: false,
+      mode: 'direct',
+      host: '',
+      port: 8080,
+    });
+    expect(res.success).toBe(false);
+    expect(res.error).toBe('Proxy is not configured or host is empty');
+  });
 });
 

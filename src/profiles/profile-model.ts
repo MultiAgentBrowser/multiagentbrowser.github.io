@@ -31,6 +31,7 @@ export const ProfileRecordSchema = z.object({
   group: z.string().default('Default'),
   tags: z.array(z.string().max(64)).max(20).default([]),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#3b82f6'),
+  remoteDebuggingPort: z.number().int().min(1024).max(65535).optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
 });
@@ -59,6 +60,7 @@ export interface CreateProfileDTO {
   group?: string;
   tags?: string[];
   color?: string;
+  remoteDebuggingPort?: number;
 }
 
 export interface UpdateProfileDTO {
@@ -74,4 +76,5 @@ export interface UpdateProfileDTO {
   group?: string;
   tags?: string[];
   color?: string;
+  remoteDebuggingPort?: number;
 }

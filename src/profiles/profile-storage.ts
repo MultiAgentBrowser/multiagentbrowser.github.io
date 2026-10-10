@@ -53,6 +53,7 @@ export class ProfileStorage {
           }
         })(),
         color: row.profile.color || '#3b82f6',
+        remoteDebuggingPort: (row.profile as any).remote_debugging_port || undefined,
         createdAt: row.profile.created_at,
         updatedAt: row.profile.updated_at || row.profile.created_at,
       }));

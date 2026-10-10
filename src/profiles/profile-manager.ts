@@ -39,6 +39,7 @@ export class ProfileManager {
     group?: string;
     tags?: string[];
     color: string;
+    remoteDebuggingPort?: number;
   }): ProfileRecord {
     const now = Date.now();
     const storagePath = ProfileStorage.ensureProfileDirectory(data.id);
@@ -53,6 +54,7 @@ export class ProfileManager {
       notes: data.notes || '',
       group: data.group || 'Default',
       tags: data.tags || [],
+      remoteDebuggingPort: data.remoteDebuggingPort,
       createdAt: now,
       updatedAt: now,
     };
@@ -80,6 +82,7 @@ export class ProfileManager {
       group: dto.group || 'Default',
       tags: dto.tags || [],
       color: dto.color || '#8b5cf6',
+      remoteDebuggingPort: dto.remoteDebuggingPort,
     });
 
     this.persist([profile.id]);
@@ -177,6 +180,7 @@ export class ProfileManager {
     if (dto.group !== undefined) profile.group = dto.group;
     if (dto.tags !== undefined) profile.tags = dto.tags;
     if (dto.color !== undefined) profile.color = dto.color;
+    if (dto.remoteDebuggingPort !== undefined) profile.remoteDebuggingPort = dto.remoteDebuggingPort;
     profile.updatedAt = Date.now();
 
     this.persist([profileId]);

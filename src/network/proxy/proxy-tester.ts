@@ -4,6 +4,10 @@ import { ProxyConfig } from '../../security/ipc-contracts';
 export interface ProxyTestResult {
   success: boolean;
   latencyMs?: number;
+  ip?: string;
+  country?: string;
+  city?: string;
+  timezone?: string;
   error?: string;
 }
 
@@ -31,12 +35,42 @@ export class ProxyTester {
 
       socket.setTimeout(timeoutMs);
 
-      socket.on('connect', () => {
+      socket.on('connect', async () => {
         const latencyMs = Date.now() - startTime;
         socket.destroy();
+
+        // Optional: inspect host or ipinfo if host looks like a public IP
+        let country: string | undefined;
+        let city: string | undefined;
+        let timezone: string | undefined;
+        const host = config.host.trim();
+
+        if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(host)) {
+          try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 2000);
+            const geoRes = await fetch(`https://ipwho.is/${host}`, { signal: controller.signal });
+            clearTimeout(timer);
+            if (geoRes.ok) {
+              const data = await geoRes.json();
+              if (data && data.success) {
+                country = data.country || data.country_code;
+                city = data.city;
+                timezone = data.timezone?.id;
+              }
+            }
+          } catch {
+            // Ignore non-blocking geo error
+          }
+        }
+
         resolve({
           success: true,
           latencyMs,
+          ip: host,
+          country,
+          city,
+          timezone,
         });
       });
 

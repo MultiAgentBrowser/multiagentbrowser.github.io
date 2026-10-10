@@ -100,6 +100,12 @@ export class BrowserInstanceManager {
         '--proxy-bypass-list=<local>',
       ];
 
+      // Puppeteer / Playwright Remote Debugging automation port support
+      if (profile.remoteDebuggingPort && profile.remoteDebuggingPort > 0) {
+        args.push(`--remote-debugging-port=${profile.remoteDebuggingPort}`);
+        args.push(`--remote-debugging-address=127.0.0.1`);
+      }
+
       // If proxy authentication credentials are provided, load the ephemeral proxy auth extension
       if (profile.proxy.enabled && profile.proxy.username && profile.proxy.password) {
         extensionPaths.push(createProxyAuthExtension(

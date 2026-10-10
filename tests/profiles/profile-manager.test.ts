@@ -235,6 +235,19 @@ describe('ProfileManager Lifecycle & Storage Isolation', () => {
     reloadedManager.deleteProfile(temporary.id);
   });
 
+  it('correctly sets and updates remoteDebuggingPort for automation', () => {
+    const profile = manager.createProfile({
+      name: 'Puppeteer Profile',
+      remoteDebuggingPort: 9222,
+    });
+    expect(profile.remoteDebuggingPort).toBe(9222);
+
+    const updated = manager.updateProfile(profile.id, {
+      remoteDebuggingPort: 9333,
+    });
+    expect(updated.remoteDebuggingPort).toBe(9333);
+  });
+
   afterEach(() => {
     AppPaths.setCustomAppDataDir(null);
     ProfileDatabase.setInstance(null as any);
