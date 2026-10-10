@@ -102,38 +102,9 @@ export async function syncProfilesFromCloud(user: User): Promise<Profile[]> {
     await cleanupBatch.commit();
   }
 
-  // Fetch current local profiles from device
-  const localProfiles = await window.browserAPI.listProfiles();
-  const persistentLocalProfiles = (localProfiles || []).filter((p) => {
-    if (p.isTemporary) return false;
-    if (demoProfileIds.includes(p.id)) return false;
-    const lowerName = (p.name || '').trim().toLowerCase();
-    return (
-      lowerName !== 'keep me' &&
-      lowerName !== 'temporary session' &&
-      lowerName !== 'running temporary' &&
-      !lowerName.startsWith('demo')
-    );
-  });
-
-  // If cloud has no profiles, but we have persistent local profiles on this device:
-  // Upload local profiles to cloud rather than wiping local profiles!
-  if (remoteProfiles.length === 0) {
-    if (persistentLocalProfiles.length > 0) {
-      await saveProfiles(db, user.uid, persistentLocalProfiles);
-      return persistentLocalProfiles;
-    }
-    // Both cloud and local are empty - clean new account
-    const accountProfiles = await window.browserAPI.replaceCloudProfiles([]);
-    return accountProfiles;
-  }
-
-  // If cloud has profiles: merge remote profiles with any local profiles not yet in cloud
-  const remoteIdSet = new Set(remoteProfiles.map((p) => p.id));
-  const unSyncedLocalProfiles = persistentLocalProfiles.filter((p) => !remoteIdSet.has(p.id));
-  const mergedProfiles = [...remoteProfiles, ...unSyncedLocalProfiles];
-
-  const accountProfiles = await window.browserAPI.replaceCloudProfiles(mergedProfiles);
+  // The signed-in account's cloud collection is authoritative. Never merge
+  // device-local profiles here: they may belong to a different account.
+  const accountProfiles = await window.browserAPI.replaceCloudProfiles(remoteProfiles);
   await saveProfiles(db, user.uid, accountProfiles);
   return accountProfiles;
 }

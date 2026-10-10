@@ -137,6 +137,22 @@ describe('ProfileManager Lifecycle & Storage Isolation', () => {
     expect(fs.existsSync(AppPaths.getProfileStorageDir(local.id))).toBe(true);
   });
 
+  it('replaces previous-account profiles with only the current account cloud profiles', () => {
+    const previousAccountProfile = manager.createProfile({ name: 'Previous account only' });
+    const accountCloudProfile = {
+      ...previousAccountProfile,
+      id: 'cloud-profile-for-current-account',
+      name: 'Current account profile',
+      updatedAt: previousAccountProfile.updatedAt + 1,
+    };
+
+    const replaced = manager.replaceSyncedProfiles([accountCloudProfile]);
+
+    expect(replaced.map((profile) => profile.id)).toEqual([accountCloudProfile.id]);
+    expect(replaced.some((profile) => profile.id === previousAccountProfile.id)).toBe(false);
+    expect(manager.listProfiles().map((profile) => profile.name)).toEqual(['Current account profile']);
+  });
+
   it('does not treat local running status changes as profile-setting edits', () => {
     const profile = manager.createProfile({ name: 'Status test' });
     const updatedAt = profile.updatedAt;

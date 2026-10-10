@@ -1,11 +1,14 @@
 import React, { FormEvent, useEffect, useState } from 'react';
-import { User, createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { User, onAuthStateChanged as subscribeAuthState, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import {
   AlertTriangle,
+  ArrowRight,
   Check,
   Cloud,
   LoaderCircle,
+  LockKeyhole,
   LogOut,
+  Mail,
   RefreshCw,
   Settings,
   ShieldCheck,
@@ -13,38 +16,46 @@ import {
   X,
 } from 'lucide-react';
 import { getFirebaseServices, isFirebaseConfigured } from '../services/firebase';
+import { getSignInErrorMessage } from '../services/auth-error-message';
 import { deleteProfileFromCloud, saveProfileToCloud, syncProfilesFromCloud } from '../services/cloud-profile-sync';
+import appLogo from '../../../build/icon.svg';
 
 interface CloudSyncPanelProps {
-  onProfilesUpdated: () => void;
-  onAuthChanged: (authenticated: boolean) => void;
+  onProfilesUpdated: () => void | Promise<void>;
+  onAuthStateChanged: (state: 'checking' | 'syncing' | 'signedOut' | 'ready' | 'error') => void;
   required?: boolean;
 }
 
 export const CloudSyncPanel: React.FC<CloudSyncPanelProps> = ({
   onProfilesUpdated,
-  onAuthChanged,
+  onAuthStateChanged,
   required = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [createAccount, setCreateAccount] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
+  const [authResolved, setAuthResolved] = useState(false);
 
   useEffect(() => {
-    onAuthChanged(false);
-    if (!isFirebaseConfigured) return;
+    onAuthStateChanged('checking');
+    if (!isFirebaseConfigured) {
+      setAuthResolved(true);
+      setError('Cloud sync is not configured. Add the Firebase web app settings to .env.local and rebuild.');
+      onAuthStateChanged('error');
+      return;
+    }
 
     try {
       const { auth } = getFirebaseServices();
-      return onAuthStateChanged(auth, (account) => {
-        onAuthChanged(false);
+      return subscribeAuthState(auth, async (account) => {
+        setAuthResolved(true);
         setUser(account);
         if (account) {
+          onAuthStateChanged('syncing');
           setBusy(true);
           setError('');
           account.getIdToken()
@@ -53,10 +64,10 @@ export const CloudSyncPanel: React.FC<CloudSyncPanelProps> = ({
               apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
             }))
             .then(() => syncProfilesFromCloud(account))
-            .then(() => {
+            .then(async () => {
               setStatus('Profiles synced');
-              onProfilesUpdated();
-              onAuthChanged(true);
+              await onProfilesUpdated();
+              onAuthStateChanged('ready');
             })
             .catch(async (syncError: unknown) => {
               const authErrorMessage = syncError instanceof Error ? syncError.message : String(syncError);
@@ -64,30 +75,34 @@ export const CloudSyncPanel: React.FC<CloudSyncPanelProps> = ({
                 await window.browserAPI.setAuthenticatedUser(null);
               } catch (clearError) {
                 setError(`${authErrorMessage}; ${clearError instanceof Error ? clearError.message : String(clearError)}`);
-                onAuthChanged(false);
+                onAuthStateChanged('error');
                 return;
               }
               setError(authErrorMessage);
-              onAuthChanged(false);
+              onAuthStateChanged('error');
             })
             .finally(() => setBusy(false));
         } else {
-          window.browserAPI.setAuthenticatedUser(null).catch((authError: unknown) => {
+          try {
+            await window.browserAPI.setAuthenticatedUser(null);
+            onAuthStateChanged('signedOut');
+          } catch (authError) {
             setError(authError instanceof Error ? authError.message : String(authError));
-          });
-          onAuthChanged(false);
+            onAuthStateChanged('error');
+          }
           setStatus('');
-          onProfilesUpdated();
         }
       }, (authError) => {
         setError(authError.message);
-        onAuthChanged(false);
+        setAuthResolved(true);
+        onAuthStateChanged('error');
       });
     } catch (configError) {
       setError(configError instanceof Error ? configError.message : String(configError));
-      onAuthChanged(false);
+      setAuthResolved(true);
+      onAuthStateChanged('error');
     }
-  }, [onAuthChanged, onProfilesUpdated]);
+  }, [onAuthStateChanged, onProfilesUpdated]);
 
   useEffect(() => {
     if (!user) return;
@@ -115,14 +130,10 @@ export const CloudSyncPanel: React.FC<CloudSyncPanelProps> = ({
     setError('');
     try {
       const { auth } = getFirebaseServices();
-      if (createAccount) {
-        await createUserWithEmailAndPassword(auth, email.trim(), password);
-      } else {
-        await signInWithEmailAndPassword(auth, email.trim(), password);
-      }
+      await signInWithEmailAndPassword(auth, email.trim(), password);
       setPassword('');
     } catch (authError) {
-      setError(authError instanceof Error ? authError.message : String(authError));
+      setError(getSignInErrorMessage(authError));
     } finally {
       setBusy(false);
     }
@@ -138,9 +149,10 @@ export const CloudSyncPanel: React.FC<CloudSyncPanelProps> = ({
         idToken,
         apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
       });
+      onAuthStateChanged('syncing');
       await syncProfilesFromCloud(user);
-      onProfilesUpdated();
-      onAuthChanged(true);
+      await onProfilesUpdated();
+      onAuthStateChanged('ready');
       setStatus('Profiles synced');
     } catch (syncError) {
       const syncErrorMessage = syncError instanceof Error ? syncError.message : String(syncError);
@@ -148,11 +160,11 @@ export const CloudSyncPanel: React.FC<CloudSyncPanelProps> = ({
         await window.browserAPI.setAuthenticatedUser(null);
       } catch (clearError) {
         setError(`${syncErrorMessage}; ${clearError instanceof Error ? clearError.message : String(clearError)}`);
-        if (required) onAuthChanged(false);
+        onAuthStateChanged('error');
         return;
       }
       setError(syncErrorMessage);
-      if (required) onAuthChanged(false);
+      onAuthStateChanged('error');
     } finally {
       setBusy(false);
     }
@@ -162,12 +174,14 @@ export const CloudSyncPanel: React.FC<CloudSyncPanelProps> = ({
     if (!user) return;
     setBusy(true);
     setError('');
+    onAuthStateChanged('checking');
     try {
       const { auth } = getFirebaseServices();
       await window.browserAPI.setAuthenticatedUser(null);
       await signOut(auth);
     } catch (authError) {
       setError(authError instanceof Error ? authError.message : String(authError));
+      onAuthStateChanged('error');
     } finally {
       setBusy(false);
     }
@@ -175,7 +189,7 @@ export const CloudSyncPanel: React.FC<CloudSyncPanelProps> = ({
 
   const blockingSignIn = required && !user;
   const blockingSync = required && Boolean(user);
-  const showDialog = isOpen || (required && (!user || busy || Boolean(error)));
+  const showDialog = isOpen || (required && authResolved && (!user || Boolean(error)));
 
   useEffect(() => {
     if (!showDialog || required) return;
@@ -208,139 +222,250 @@ export const CloudSyncPanel: React.FC<CloudSyncPanelProps> = ({
           }}
         >
           <section
-            className="settings-dialog"
+            className={`settings-dialog${blockingSignIn ? ' login-dialog' : ''}`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="cloud-sync-title"
             onClick={(event) => event.stopPropagation()}
           >
-            <header className="settings-header">
-              <div className="settings-heading">
-                <span className="settings-heading-icon"><Settings size={18} /></span>
-                <div>
-                  <p className="settings-eyebrow">MULTI AGENT</p>
-                  <h2 id="cloud-sync-title">
-                    {blockingSignIn ? 'Sign in to continue' : required ? 'Profile cloud sync' : 'Settings'}
-                  </h2>
-                  <p className="settings-subtitle">
-                    {blockingSignIn ? 'Sign in to access your browser profiles' : 'Manage your account and profile sync'}
-                  </p>
-                </div>
-              </div>
-              {!required && (
-                <button type="button" className="settings-close" aria-label="Close settings" onClick={() => setIsOpen(false)}>
-                  <X size={18} />
-                </button>
-              )}
-            </header>
-            <div className="settings-layout">
-              <nav className="settings-nav" aria-label="Settings sections">
-                <p className="settings-nav-label">PREFERENCES</p>
-                <div className="settings-nav-item" aria-current="page">
-                  <UserRound size={16} />
-                  <span>Account &amp; sync</span>
-                </div>
-              </nav>
-              <div className="settings-content">
-                <div className="settings-section-heading">
-                  <div>
-                    <h3>Account &amp; sync</h3>
-                    <p>Sign-in and cloud profile synchronization</p>
+            {blockingSignIn ? (
+              <div className="login-screen">
+                <aside className="login-brand-panel" aria-label="Multi Agent">
+                  <div className="login-brand">
+                    <span className="login-brand-mark"><img src={appLogo} alt="" /></span>
+                    <span>Multi Agent</span>
                   </div>
-                  <Cloud size={19} />
-                </div>
-                {!isFirebaseConfigured ? (
-                  <div className="settings-notice settings-notice--error" role="alert">
-                    <AlertTriangle size={17} />
-                    <p>Cloud sync is not configured. Add the Firebase web app settings to <code>.env.local</code> and rebuild.</p>
+                  <div className="login-brand-message">
+                    <span className="login-kicker">YOUR PRIVATE WORKSPACE</span>
+                    <h1>A fresh start for every profile.</h1>
+                    <p>Sign in to keep your browser profiles organized and in sync with your account.</p>
                   </div>
-                ) : blockingSync ? (
-                  <div className="settings-account-card">
-                    <div className="settings-account-identity">
-                      <span className="settings-avatar"><UserRound size={20} /></span>
-                      <div className="settings-account-details">
-                        <span className="settings-field-label">SIGNED-IN ACCOUNT</span>
-                        <strong>{user?.email || 'Your account'}</strong>
-                      </div>
-                    </div>
-                    <div className="settings-sync-status" role="status">
-                      {busy ? <LoaderCircle size={16} className="spin" /> : <AlertTriangle size={16} />}
-                      <span>{busy ? 'Syncing your profiles…' : 'Cloud sync needs attention'}</span>
-                    </div>
-                    {!busy && (
-                      <div className="settings-actions">
-                        <button type="button" className="settings-button settings-button--primary" onClick={handleSync}>
-                          <RefreshCw size={15} /> Retry sync
-                        </button>
-                        <button type="button" className="settings-button settings-button--danger" onClick={handleSignOut}>
-                          <LogOut size={15} /> Log out
-                        </button>
-                      </div>
-                    )}
+                  <div className="login-brand-footnote">
+                    <ShieldCheck size={17} />
+                    <span>Your profiles are kept separate by account.</span>
                   </div>
-                ) : user ? (
-                  <div className="settings-account-card">
-                    <div className="settings-account-identity">
-                      <span className="settings-avatar"><UserRound size={20} /></span>
-                      <div className="settings-account-details">
-                        <span className="settings-field-label">SIGNED-IN ACCOUNT</span>
-                        <strong>{user.email || 'Account email unavailable'}</strong>
-                      </div>
-                      <span className="settings-badge"><span /> Connected</span>
-                    </div>
-                    <div className="settings-sync-status" role="status">
-                      {busy ? <LoaderCircle size={16} className="spin" /> : <Check size={16} />}
-                      <span>{busy ? 'Syncing profile changes…' : status || 'Cloud sync is ready'}</span>
-                    </div>
-                    <div className="settings-actions">
-                      <button type="button" className="settings-button settings-button--primary" disabled={busy} onClick={handleSync}>
-                        {busy ? <LoaderCircle size={15} className="spin" /> : <RefreshCw size={15} />}
-                        Sync now
-                      </button>
-                      <button type="button" className="settings-button settings-button--danger" disabled={busy} onClick={handleSignOut}>
-                        <LogOut size={15} /> Log out
-                      </button>
-                    </div>
+                  <div className="login-orbit login-orbit--outer" aria-hidden="true" />
+                  <div className="login-orbit login-orbit--inner" aria-hidden="true" />
+                </aside>
+
+                <div className="login-form-panel">
+                  <div className="login-mobile-brand">
+                    <img src={appLogo} alt="" />
+                    <span>Multi Agent</span>
                   </div>
-                ) : (
-                  <form onSubmit={handleSubmit} className="settings-auth-form">
+                  <div className="login-heading">
+                    <span className="login-kicker">ACCOUNT ACCESS</span>
+                    <h2 id="cloud-sync-title">Welcome back</h2>
+                    <p>Sign in with the account provided by your administrator.</p>
+                  </div>
+                  {!isFirebaseConfigured && (
+                    <div className="settings-notice settings-notice--error" role="alert">
+                      <AlertTriangle size={17} />
+                      <p>Cloud sync is not configured. Add the Firebase web app settings to <code>.env.local</code> and rebuild.</p>
+                    </div>
+                  )}
+                  <form onSubmit={handleSubmit} className="settings-auth-form login-auth-form">
                     <label htmlFor="settings-email">Email address</label>
-                    <input
-                      id="settings-email"
-                      autoComplete="email"
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      placeholder="name@example.com"
-                    />
+                    <div className="login-input-wrap">
+                      <Mail size={17} aria-hidden="true" />
+                      <input
+                        id="settings-email"
+                        autoComplete="email"
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
+                        placeholder="name@example.com"
+                      />
+                    </div>
                     <label htmlFor="settings-password">Password</label>
-                    <input
-                      id="settings-password"
-                      autoComplete={createAccount ? 'new-password' : 'current-password'}
-                      type="password"
-                      minLength={6}
-                      required
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                      placeholder="Enter your password"
-                    />
-                    <button type="submit" disabled={busy} className="settings-button settings-button--primary settings-submit">
-                      {busy && <LoaderCircle size={15} className="spin" />}
-                      {createAccount ? 'Create account' : 'Sign in'}
-                    </button>
-                    <button type="button" className="settings-link-button" onClick={() => setCreateAccount((value) => !value)}>
-                      {createAccount ? 'Already have an account? Sign in' : 'Need an account? Create one'}
+                    <div className="login-input-wrap">
+                      <LockKeyhole size={17} aria-hidden="true" />
+                      <input
+                        id="settings-password"
+                        autoComplete="current-password"
+                        type="password"
+                        minLength={6}
+                        required
+                        value={password}
+                        onChange={(event) => setPassword(event.target.value)}
+                        placeholder="Enter your password"
+                      />
+                    </div>
+                    <button type="submit" disabled={busy || !isFirebaseConfigured} className="settings-button settings-button--primary settings-submit login-submit">
+                      {busy ? <LoaderCircle size={17} className="spin" /> : <>Sign in <ArrowRight size={17} /></>}
                     </button>
                   </form>
-                )}
-                <div className="settings-privacy-note">
-                  <ShieldCheck size={17} />
-                  <p><strong>Privacy protections are best-effort.</strong> Known tracking domains and third-party cookies are restricted, but not every fingerprinting technique can be prevented. Profiles sync to your account; proxy passwords and Chrome browsing data are never uploaded.</p>
+                  {error && <div className="settings-notice settings-notice--error" role="alert"><AlertTriangle size={17} /><p>{error}</p></div>}
+                  <p className="login-security-note"><ShieldCheck size={15} /> Secure sign-in. Your password is never stored in your profiles.</p>
                 </div>
-                {error && <div className="settings-notice settings-notice--error" role="alert"><AlertTriangle size={17} /><p>{error}</p></div>}
               </div>
-            </div>
+            ) : blockingSync ? (
+              <div className="login-screen">
+                <aside className="login-brand-panel" aria-label="Multi Agent">
+                  <div className="login-brand">
+                    <span className="login-brand-mark"><img src={appLogo} alt="" /></span>
+                    <span>Multi Agent</span>
+                  </div>
+                  <div className="login-brand-message">
+                    <span className="login-kicker">ACCOUNT CONNECTED</span>
+                    <h1>One moment. We’re getting your workspace ready.</h1>
+                    <p>Your account is signed in, but its cloud profiles could not be loaded yet.</p>
+                  </div>
+                  <div className="login-brand-footnote">
+                    <ShieldCheck size={17} />
+                    <span>Your profiles remain separated by account.</span>
+                  </div>
+                  <div className="login-orbit login-orbit--outer" aria-hidden="true" />
+                  <div className="login-orbit login-orbit--inner" aria-hidden="true" />
+                </aside>
+                <div className="login-form-panel login-recovery-panel">
+                  <div className="login-mobile-brand">
+                    <img src={appLogo} alt="" />
+                    <span>Multi Agent</span>
+                  </div>
+                  <div className="login-heading">
+                    <span className="login-kicker">PROFILE SYNC</span>
+                    <h2 id="cloud-sync-title">Couldn’t load dashboard</h2>
+                    <p>Signed in as <strong>{user?.email || 'your account'}</strong>. We need to sync your cloud profiles before opening the dashboard.</p>
+                  </div>
+                  {error && <div className="settings-notice settings-notice--error" role="alert"><AlertTriangle size={17} /><p>{error}</p></div>}
+                  <div className="login-recovery-actions">
+                    <button type="button" className="settings-button settings-button--primary" disabled={busy} onClick={handleSync}>
+                      {busy ? <LoaderCircle size={16} className="spin" /> : <RefreshCw size={16} />}
+                      Retry profile sync
+                    </button>
+                    <button type="button" className="settings-button settings-button--danger" disabled={busy} onClick={handleSignOut}>
+                      <LogOut size={16} /> Log out
+                    </button>
+                  </div>
+                  <p className="login-security-note"><ShieldCheck size={15} /> The dashboard opens only after account profiles finish loading.</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <header className="settings-header">
+                  <div className="settings-heading">
+                    <span className="settings-heading-icon"><Settings size={18} /></span>
+                    <div>
+                      <p className="settings-eyebrow">MULTI AGENT</p>
+                      <h2 id="cloud-sync-title">{required ? 'Profile cloud sync' : 'Settings'}</h2>
+                      <p className="settings-subtitle">Manage your account and profile sync</p>
+                    </div>
+                  </div>
+                  {!required && (
+                    <button type="button" className="settings-close" aria-label="Close settings" onClick={() => setIsOpen(false)}>
+                      <X size={18} />
+                    </button>
+                  )}
+                </header>
+                <div className="settings-layout">
+                  <nav className="settings-nav" aria-label="Settings sections">
+                    <p className="settings-nav-label">PREFERENCES</p>
+                    <div className="settings-nav-item" aria-current="page">
+                      <UserRound size={16} />
+                      <span>Account &amp; sync</span>
+                    </div>
+                  </nav>
+                  <div className="settings-content">
+                    <div className="settings-section-heading">
+                      <div>
+                        <h3>Account &amp; sync</h3>
+                        <p>Sign-in and cloud profile synchronization</p>
+                      </div>
+                      <Cloud size={19} />
+                    </div>
+                    {!isFirebaseConfigured ? (
+                      <div className="settings-notice settings-notice--error" role="alert">
+                        <AlertTriangle size={17} />
+                        <p>Cloud sync is not configured. Add the Firebase web app settings to <code>.env.local</code> and rebuild.</p>
+                      </div>
+                    ) : blockingSync ? (
+                      <div className="settings-account-card">
+                        <div className="settings-account-identity">
+                          <span className="settings-avatar"><UserRound size={20} /></span>
+                          <div className="settings-account-details">
+                            <span className="settings-field-label">SIGNED-IN ACCOUNT</span>
+                            <strong>{user?.email || 'Your account'}</strong>
+                          </div>
+                        </div>
+                        <div className="settings-sync-status" role="status">
+                          {busy ? <LoaderCircle size={16} className="spin" /> : <AlertTriangle size={16} />}
+                          <span>{busy ? 'Syncing your profiles…' : 'Cloud sync needs attention'}</span>
+                        </div>
+                        {!busy && (
+                          <div className="settings-actions">
+                            <button type="button" className="settings-button settings-button--primary" onClick={handleSync}>
+                              <RefreshCw size={15} /> Retry sync
+                            </button>
+                            <button type="button" className="settings-button settings-button--danger" onClick={handleSignOut}>
+                              <LogOut size={15} /> Log out
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : user ? (
+                      <div className="settings-account-card">
+                        <div className="settings-account-identity">
+                          <span className="settings-avatar"><UserRound size={20} /></span>
+                          <div className="settings-account-details">
+                            <span className="settings-field-label">SIGNED-IN ACCOUNT</span>
+                            <strong>{user.email || 'Account email unavailable'}</strong>
+                          </div>
+                          <span className="settings-badge"><span /> Connected</span>
+                        </div>
+                        <div className="settings-sync-status" role="status">
+                          {busy ? <LoaderCircle size={16} className="spin" /> : <Check size={16} />}
+                          <span>{busy ? 'Syncing profile changes…' : status || 'Cloud sync is ready'}</span>
+                        </div>
+                        <div className="settings-actions">
+                          <button type="button" className="settings-button settings-button--primary" disabled={busy} onClick={handleSync}>
+                            {busy ? <LoaderCircle size={15} className="spin" /> : <RefreshCw size={15} />}
+                            Sync now
+                          </button>
+                          <button type="button" className="settings-button settings-button--danger" disabled={busy} onClick={handleSignOut}>
+                            <LogOut size={15} /> Log out
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <form onSubmit={handleSubmit} className="settings-auth-form">
+                        <label htmlFor="settings-email">Email address</label>
+                        <input
+                          id="settings-email"
+                          autoComplete="email"
+                          type="email"
+                          required
+                          value={email}
+                          onChange={(event) => setEmail(event.target.value)}
+                          placeholder="name@example.com"
+                        />
+                        <label htmlFor="settings-password">Password</label>
+                        <input
+                          id="settings-password"
+                          autoComplete="current-password"
+                          type="password"
+                          minLength={6}
+                          required
+                          value={password}
+                          onChange={(event) => setPassword(event.target.value)}
+                          placeholder="Enter your password"
+                        />
+                        <button type="submit" disabled={busy} className="settings-button settings-button--primary settings-submit">
+                          {busy && <LoaderCircle size={15} className="spin" />}
+                          Sign in
+                        </button>
+                      </form>
+                    )}
+                    <div className="settings-privacy-note">
+                      <ShieldCheck size={17} />
+                      <p><strong>Privacy protections are best-effort.</strong> Known tracking domains and third-party cookies are restricted, but not every fingerprinting technique can be prevented. Profiles sync to your account; proxy passwords and Chrome browsing data are never uploaded.</p>
+                    </div>
+                    {error && <div className="settings-notice settings-notice--error" role="alert"><AlertTriangle size={17} /><p>{error}</p></div>}
+                  </div>
+                </div>
+              </>
+            )}
             {!required && <footer className="settings-footer">Changes to profiles sync automatically when cloud sync is connected.</footer>}
           </section>
         </div>

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
+import { LoaderCircle } from 'lucide-react';
 import { Profile } from '../security/ipc-contracts';
 import { CloudSyncPanel } from './components/CloudSyncPanel';
 import { ProfileSwitcher } from './components/ProfileSwitcher';
@@ -7,7 +8,7 @@ import appLogo from '../../build/icon.svg';
 import './styles/index.css';
 
 const App: React.FC = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authState, setAuthState] = useState<'checking' | 'syncing' | 'signedOut' | 'ready' | 'error'>('checking');
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [profilesLoaded, setProfilesLoaded] = useState(false);
 
@@ -22,19 +23,17 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const handleAuthChanged = useCallback((authenticated: boolean) => {
-    setIsAuthenticated(authenticated);
-    void refreshProfiles();
-  }, [refreshProfiles]);
-
-  // Always load profiles immediately upon app launch
-  useEffect(() => {
-    void refreshProfiles();
-  }, [refreshProfiles]);
+  const handleAuthStateChanged = useCallback((state: typeof authState) => {
+    setAuthState(state);
+    if (state === 'signedOut' || state === 'error') {
+      setProfiles([]);
+      setProfilesLoaded(false);
+    }
+  }, []);
 
   return (
     <div className="app-container">
-      {isAuthenticated && (
+      {authState === 'ready' ? (
         <>
           <header className="window-titlebar" style={{ justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#e2e4e9', fontWeight: 650 }}>
@@ -53,7 +52,7 @@ const App: React.FC = () => {
             {profilesLoaded ? (
               <ProfileSwitcher
                 profiles={profiles}
-                isAuthenticated={isAuthenticated}
+                isAuthenticated
                 onRefreshProfiles={refreshProfiles}
               />
             ) : (
@@ -63,12 +62,29 @@ const App: React.FC = () => {
             )}
           </main>
         </>
-      )}
+      ) : authState === 'checking' || authState === 'syncing' ? (
+        <main
+          role="status"
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 16,
+            color: '#9ba1b0',
+          }}
+        >
+          <img src={appLogo} alt="Multi Agent" width={56} height={56} />
+          <LoaderCircle size={22} className="spin" aria-hidden="true" />
+          <span>{authState === 'syncing' ? 'Loading your profiles…' : 'Checking your account…'}</span>
+        </main>
+      ) : null}
 
       <CloudSyncPanel
-        required={!isAuthenticated}
+        required={authState !== 'ready'}
         onProfilesUpdated={refreshProfiles}
-        onAuthChanged={handleAuthChanged}
+        onAuthStateChanged={handleAuthStateChanged}
       />
     </div>
   );

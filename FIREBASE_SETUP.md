@@ -16,9 +16,9 @@ The Firebase Web configuration is public client configuration, not a service-acc
 
 ## Sync behavior
 
-- Email/password accounts are provided by Firebase Authentication.
+- Email/password accounts must be created manually in Firebase Authentication; the app only provides sign-in.
 - Signing in is required before profiles can be created, edited, deleted, imported, or launched. The app no longer seeds the Personal, Work, or Testing demo profiles.
-- Signing in downloads cloud profiles, merges profiles by ID using the newest `updatedAt`, then uploads the merged persistent profiles.
+- Signing in replaces the device profile list with only the signed-in account's cloud profiles. The cloud is authoritative, so profiles from a previously signed-in account are not merged into a new account.
 - Profile additions and edits are uploaded while signed in. Use **Sync now** to merge again after using another device.
 - Temporary profiles are excluded.
 - Profiles may have an optional custom User-Agent string (up to 512 characters); when blank, the selected browser, version, and OS determine it. Deploy the current Firestore rules before syncing profiles with a custom User-Agent.
