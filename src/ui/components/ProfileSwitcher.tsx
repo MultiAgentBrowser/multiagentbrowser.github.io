@@ -520,7 +520,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
               <tr style={{ borderBottom: '1px solid #232636', color: '#8b92a2', fontSize: 11, textTransform: 'uppercase' }}>
                 <th style={{ padding: '12px 24px' }}>Profile Name</th>
                 <th style={{ padding: '12px 16px' }}>Status</th>
-                <th style={{ padding: '12px 16px' }}>Browser Identity & Version</th>
+                <th style={{ padding: '12px 16px' }}>Browser Engine & Version</th>
                 <th style={{ padding: '12px 16px' }}>OS</th>
                 <th style={{ padding: '12px 16px' }}>Proxy</th>
                 <th style={{ padding: '12px 16px' }}>Privacy</th>
@@ -890,11 +890,11 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                 </div>
               </div>
 
-              {/* Select the browser identity exposed to websites by the bundled Chromium runtime. */}
+              {/* Browser Engine & Version Selection */}
               <div style={{ display: 'flex', gap: 12 }}>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
-                    Website Browser Identity
+                    Browser Engine
                   </label>
                   <select
                     value={browserType}
@@ -967,7 +967,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                   wordBreak: 'break-all',
                 }}
               >
-                <span style={{ color: '#60a5fa', fontWeight: 600 }}>Website User-Agent: </span>
+                <span style={{ color: '#60a5fa', fontWeight: 600 }}>Emulated User-Agent: </span>
                 <span style={{ color: '#d1d5db', fontFamily: 'monospace' }}>
                   {getBrowserUserAgent(browserType, browserVersion, os)}
                 </span>

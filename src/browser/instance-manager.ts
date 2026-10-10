@@ -5,7 +5,8 @@ import path from 'path';
 import { ProfileLock } from '../profiles/profile-lock';
 import { ProfileManager } from '../profiles/profile-manager';
 import { IPC_CHANNELS } from '../security/ipc-contracts';
-import { getChromeExecutable } from './chrome-launcher';
+import { getBrowserExecutable, getChromeExecutable } from './chrome-launcher';
+import { createProxyAuthExtension } from './proxy-extension';
 import { AppPaths } from '../platform/paths';
 import { ProxyManager } from '../network/proxy/proxy-manager';
 import { getBrowserUserAgent } from '../profiles/browser-definitions';
@@ -49,14 +50,11 @@ export class BrowserInstanceManager {
     }
 
     try {
-      if (profile.proxy.username || profile.proxy.password) {
-        throw new Error('Google Chrome does not yet support authenticated proxy credentials.');
-      }
-
-      const executablePath = getChromeExecutable();
+      const { executablePath } = getBrowserExecutable(profile.browserType);
       const userDataPath = path.join(AppPaths.getProfileStorageDir(profileId), 'ChromiumProfileData');
       fs.mkdirSync(userDataPath, { recursive: true });
       const proxyRules = ProxyManager.buildProxyRules(profile.proxy);
+
       const args = [
         `--user-data-dir=${userDataPath}`,
         '--no-first-run',
@@ -66,8 +64,20 @@ export class BrowserInstanceManager {
         `--force-webrtc-ip-handling-policy=${profile.webrtcPolicy}`,
         `--proxy-server=${proxyRules}`,
         '--proxy-bypass-list=<local>',
-        'https://duckduckgo.com',
       ];
+
+      // If proxy authentication credentials are provided, load the ephemeral proxy auth extension
+      if (profile.proxy.enabled && profile.proxy.username && profile.proxy.password) {
+        const extPath = createProxyAuthExtension(
+          path.join(userDataPath, 'ProxyAuthExtension'),
+          profile.proxy.username,
+          profile.proxy.password
+        );
+        args.push(`--load-extension=${extPath}`);
+        args.push(`--disable-extensions-except=${extPath}`);
+      }
+
+      args.push('https://duckduckgo.com');
 
       const child = spawn(executablePath, args, { detached: true, stdio: 'ignore' });
       return await new Promise((resolve, reject) => {
@@ -75,7 +85,7 @@ export class BrowserInstanceManager {
           ProfileLock.release(profileId, child.pid || process.pid);
           this.profileManager?.updateProfileStatus(profileId, 'crashed');
           this.broadcastRunningProfiles();
-          console.error(`Could not launch Google Chrome for profile ${profileId}:`, error);
+          console.error(`Could not launch browser for profile ${profileId}:`, error);
           reject(error);
         });
         child.once('spawn', () => {

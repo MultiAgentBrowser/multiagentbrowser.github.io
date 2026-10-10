@@ -67,9 +67,6 @@ function registerIpcHandlers() {
     const transition = ++authTransition;
     if (credentials === null) {
       authenticatedUserId = null;
-      await Promise.all(
-        profileManager.listProfiles().map((profile) => BrowserWindowManager.stopProfileWindow(profile.id))
-      );
       return;
     }
 
@@ -89,53 +86,55 @@ function registerIpcHandlers() {
 
   // Profile handlers
   ipcMain.handle(IPC_CHANNELS.PROFILE_LIST, async () => {
-    return authenticatedUserId ? profileManager.listProfiles() : [];
+    return profileManager.listProfiles();
   });
 
   ipcMain.handle(IPC_CHANNELS.PROFILE_CREATE, async (_event, data) => {
-    requireAuthenticatedUser();
     const profile = profileManager.createProfile(data);
-    mainWindow?.webContents.send(IPC_CHANNELS.PROFILE_SYNC_CHANGED, { type: 'upsert', profileId: profile.id });
+    if (authenticatedUserId) {
+      mainWindow?.webContents.send(IPC_CHANNELS.PROFILE_SYNC_CHANGED, { type: 'upsert', profileId: profile.id });
+    }
     return profile;
   });
 
   ipcMain.handle(IPC_CHANNELS.PROFILE_UPDATE, async (_event, { profileId, data }) => {
-    requireAuthenticatedUser();
     const profile = profileManager.updateProfile(profileId, data);
-    mainWindow?.webContents.send(IPC_CHANNELS.PROFILE_SYNC_CHANGED, { type: 'upsert', profileId });
+    if (authenticatedUserId) {
+      mainWindow?.webContents.send(IPC_CHANNELS.PROFILE_SYNC_CHANGED, { type: 'upsert', profileId });
+    }
     return profile;
   });
 
   ipcMain.handle(IPC_CHANNELS.PROFILE_DELETE, async (_event, { profileId }) => {
-    requireAuthenticatedUser();
     const wasRunning = ProfileLock.isLocked(profileId);
     const stopped = await BrowserWindowManager.stopProfileWindow(profileId);
     if (wasRunning && !stopped) {
       throw new Error(`Could not stop profile before deleting it: ${profileId}`);
     }
     const deleted = profileManager.deleteProfile(profileId);
-    if (deleted) {
+    if (deleted && authenticatedUserId) {
       mainWindow?.webContents.send(IPC_CHANNELS.PROFILE_SYNC_CHANGED, { type: 'delete', profileId });
     }
     return deleted;
   });
 
   ipcMain.handle(IPC_CHANNELS.PROFILE_DUPLICATE, async (_event, { profileId }) => {
-    requireAuthenticatedUser();
     const profile = profileManager.duplicateProfile(profileId);
-    mainWindow?.webContents.send(IPC_CHANNELS.PROFILE_SYNC_CHANGED, { type: 'upsert', profileId: profile.id });
+    if (authenticatedUserId) {
+      mainWindow?.webContents.send(IPC_CHANNELS.PROFILE_SYNC_CHANGED, { type: 'upsert', profileId: profile.id });
+    }
     return profile;
   });
 
   ipcMain.handle(IPC_CHANNELS.PROFILE_EXPORT, async (_event, { profileId }) => {
-    requireAuthenticatedUser();
     return profileManager.exportProfile(profileId);
   });
 
   ipcMain.handle(IPC_CHANNELS.PROFILE_IMPORT, async (_event, { jsonContent }) => {
-    requireAuthenticatedUser();
     const profile = profileManager.importProfile(jsonContent);
-    mainWindow?.webContents.send(IPC_CHANNELS.PROFILE_SYNC_CHANGED, { type: 'upsert', profileId: profile.id });
+    if (authenticatedUserId) {
+      mainWindow?.webContents.send(IPC_CHANNELS.PROFILE_SYNC_CHANGED, { type: 'upsert', profileId: profile.id });
+    }
     return profile;
   });
 
@@ -145,73 +144,61 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle(IPC_CHANNELS.PROFILE_SET_ACTIVE, async (_event, { profileId }) => {
-    requireAuthenticatedUser();
     return profileManager.setActiveProfile(profileId);
   });
 
   // Launch each profile in its own Chromium app process and user-data directory.
   ipcMain.handle(IPC_CHANNELS.PROFILE_LAUNCH, async (_event, { profileId }) => {
-    requireAuthenticatedUser();
     return BrowserInstanceManager.launchProfile(profileId);
   });
 
   ipcMain.handle(IPC_CHANNELS.PROFILE_STOP, async (_event, { profileId }) => {
-    requireAuthenticatedUser();
     return BrowserWindowManager.stopProfileWindow(profileId);
   });
 
   ipcMain.handle(IPC_CHANNELS.PROFILE_GET_RUNNING, async () => {
-    requireAuthenticatedUser();
     return BrowserWindowManager.getRunningProfileIds();
   });
 
   // Cookie & Storage IPC handlers
   ipcMain.handle(IPC_CHANNELS.COOKIE_GET, async (_event, { profileId, url }) => {
-    requireAuthenticatedUser();
     const { CookieManager } = await import('../privacy/cookies/cookie-manager');
     return CookieManager.getCookies(profileId, url);
   });
 
   ipcMain.handle(IPC_CHANNELS.COOKIE_DELETE, async (_event, { profileId, url, name }) => {
-    requireAuthenticatedUser();
     const { CookieManager } = await import('../privacy/cookies/cookie-manager');
     return CookieManager.deleteCookie(profileId, url, name);
   });
 
   ipcMain.handle(IPC_CHANNELS.COOKIE_CLEAR_ALL, async (_event, { profileId }) => {
-    requireAuthenticatedUser();
     const { CookieManager } = await import('../privacy/cookies/cookie-manager');
     return CookieManager.clearAllCookies(profileId);
   });
 
   ipcMain.handle(IPC_CHANNELS.STORAGE_CLEAR, async (_event, { profileId, categories }) => {
-    requireAuthenticatedUser();
     const { StorageCleaner } = await import('../privacy/cookies/storage-cleaner');
     return StorageCleaner.clearProfileStorage(profileId, categories);
   });
 
   // Network & Proxy IPC handler
   ipcMain.handle(IPC_CHANNELS.PROXY_TEST, async (_event, { config }) => {
-    requireAuthenticatedUser();
     const { ProxyTester } = await import('../network/proxy/proxy-tester');
     return ProxyTester.testConnection(config);
   });
 
   // Permission IPC handlers
   ipcMain.handle(IPC_CHANNELS.PERMISSION_LIST, async (_event, { profileId }) => {
-    requireAuthenticatedUser();
     const { PermissionManager } = await import('../permissions/permission-manager');
     return PermissionManager.listPermissions(profileId);
   });
 
   ipcMain.handle(IPC_CHANNELS.PERMISSION_SET, async (_event, { profileId, origin, permission, decision }) => {
-    requireAuthenticatedUser();
     const { PermissionManager } = await import('../permissions/permission-manager');
     return PermissionManager.setPermission(profileId, origin, permission, decision);
   });
 
   ipcMain.handle(IPC_CHANNELS.PERMISSION_RESET, async (_event, { profileId }) => {
-    requireAuthenticatedUser();
     const { PermissionManager } = await import('../permissions/permission-manager');
     return PermissionManager.resetPermissions(profileId);
   });
