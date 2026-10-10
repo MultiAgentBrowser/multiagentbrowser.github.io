@@ -1,5 +1,10 @@
 import { webFrame } from 'electron';
 
+const fingerprintSeed = process.argv
+  .find((argument) => argument.startsWith('--profile-fingerprint-seed='))
+  ?.slice('--profile-fingerprint-seed='.length)
+  .match(/^[a-f0-9]{64}$/)?.[0] ?? 'default-profile-fingerprint-seed';
+
 const isMac = process.platform === 'darwin';
 const env = isMac
   ? {
@@ -28,6 +33,24 @@ const script = `
   const DEVICE_MEMORY = ${env.deviceMemory};
   const VENDOR_WEBGL = ${JSON.stringify(env.webglVendor)};
   const RENDERER_WEBGL = ${JSON.stringify(env.webglRenderer)};
+  const PROFILE_SEED = ${JSON.stringify(fingerprintSeed)};
+
+  // Seeded values stay stable within a profile, but differ between profiles.
+  const hashString = (value) => {
+    let hash = 2166136261;
+    for (let i = 0; i < value.length; i++) {
+      hash = Math.imul(hash ^ value.charCodeAt(i), 16777619);
+    }
+    return hash >>> 0;
+  };
+  const profileHash = hashString(PROFILE_SEED);
+  const getNoise = (x, y) => {
+    let hash = (profileHash ^ Math.imul(x, 374761393) ^ Math.imul(y, 668265263)) >>> 0;
+    hash = Math.imul(hash ^ (hash >>> 13), 1274126177);
+    return (hash & 1) ? 1 : -1;
+  };
+  const getStableId = (kind, index) =>
+    'pb-' + hashString(PROFILE_SEED + ':' + kind + ':' + index).toString(36);
 
   // 1. Hardware Concurrency & Device Memory Normalization
   try {
@@ -97,7 +120,7 @@ const script = `
       const data = imageData.data;
       const len = data.length;
       for (let i = 0; i < len; i += 16) {
-        data[i] = Math.min(255, Math.max(0, data[i] + 1));
+        data[i] = Math.min(255, Math.max(0, data[i] + getNoise(i, len)));
       }
       return imageData;
     };
@@ -111,7 +134,7 @@ const script = `
         const floatData = originalGetChannelData.apply(this, arguments);
         const len = floatData.length;
         for (let i = 0; i < len; i += 64) {
-          floatData[i] = floatData[i] + 0.0000001;
+          floatData[i] = floatData[i] + getNoise(i, channel) * 0.0000001;
         }
         return floatData;
       };
@@ -124,40 +147,53 @@ const script = `
       const originalEnumerateDevices = navigator.mediaDevices.enumerateDevices;
       navigator.mediaDevices.enumerateDevices = async function() {
         const devices = await originalEnumerateDevices.apply(this, arguments);
-        return devices.map((d, index) => ({
-          deviceId: 'default_' + index,
-          groupId: 'group_' + index,
-          kind: d.kind,
-          label: d.label ? d.label : '',
-          toJSON: () => ({ ...d }),
-        }));
+        return devices.map((d, index) => {
+          const maskedDevice = {
+            deviceId: d.deviceId ? getStableId(d.kind, index) : '',
+            groupId: d.groupId ? getStableId(d.kind + '_group', index) : '',
+            kind: d.kind,
+            label: d.label ? d.label : '',
+          };
+          return { ...maskedDevice, toJSON: () => ({ ...maskedDevice }) };
+        });
       };
     }
   } catch (e) {}
 })();
+true;
 `;
 
-(() => {
+const injectViaDOM = () => {
+  const container = document.head || document.documentElement;
+  if (!container) return false;
 
+  const element = document.createElement('script');
+  element.textContent = script;
+  container.appendChild(element);
+  element.remove();
+  return true;
+};
+
+const injectFingerprintShield = () => {
   try {
-    // Execute inside the main execution world so all page scripts receive normalized prototypes
-    webFrame.executeJavaScript(script);
+    // executeJavaScript returns a Promise, so handle failures that happen after
+    // the synchronous call (for example, while the frame is changing documents).
+    void webFrame.executeJavaScriptInIsolatedWorld(0, [{ code: script }])
+      .then((executed) => {
+        if (executed !== true && !injectViaDOM()) {
+          document.addEventListener('DOMContentLoaded', injectViaDOM, { once: true });
+        }
+      })
+      .catch(() => {
+        if (!injectViaDOM()) {
+          document.addEventListener('DOMContentLoaded', injectViaDOM, { once: true });
+        }
+      });
   } catch {
-    // Fallback via document script tag if executeJavaScript is deferred
-    const injectViaDOM = () => {
-      const container = document.head || document.documentElement;
-      if (container) {
-        const el = document.createElement('script');
-        el.textContent = script;
-        container.appendChild(el);
-        el.remove();
-      }
-    };
-
-    if (document.documentElement) {
-      injectViaDOM();
-    } else {
+    if (!injectViaDOM()) {
       document.addEventListener('DOMContentLoaded', injectViaDOM, { once: true });
     }
   }
-})();
+};
+
+injectFingerprintShield();

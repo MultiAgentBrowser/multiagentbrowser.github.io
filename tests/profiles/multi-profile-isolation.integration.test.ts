@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { ProfileManager } from '../../src/profiles/profile-manager';
 import { ProfileDatabase } from '../../src/database/profile-database';
 import { PermissionManager } from '../../src/permissions/permission-manager';
@@ -7,16 +7,16 @@ import { ProxyManager } from '../../src/network/proxy/proxy-manager';
 import { AppPaths } from '../../src/platform/paths';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
 describe('Multi-Profile Simultaneous Isolation Integration Tests', () => {
   let profileManager: ProfileManager;
+  let tempTestDir: string;
 
   beforeEach(() => {
-    ProfileDatabase.getInstance().clear();
-    const manifest = path.join(AppPaths.getProfilesDir(), 'profiles.json');
-    if (fs.existsSync(manifest)) {
-      fs.unlinkSync(manifest);
-    }
+    tempTestDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-mp-'));
+    AppPaths.setCustomAppDataDir(tempTestDir);
+    ProfileDatabase.setInstance(new ProfileDatabase());
     profileManager = new ProfileManager();
   });
 
@@ -121,10 +121,14 @@ describe('Multi-Profile Simultaneous Isolation Integration Tests', () => {
   });
 
   afterEach(() => {
-    ProfileDatabase.getInstance().clear();
-    const manifest = path.join(AppPaths.getProfilesDir(), 'profiles.json');
-    if (fs.existsSync(manifest)) {
-      fs.unlinkSync(manifest);
+    AppPaths.setCustomAppDataDir(null);
+    ProfileDatabase.setInstance(null as any);
+    if (tempTestDir && fs.existsSync(tempTestDir)) {
+      try {
+        fs.rmSync(tempTestDir, { recursive: true, force: true });
+      } catch {
+        // cleanup ignore
+      }
     }
   });
 });

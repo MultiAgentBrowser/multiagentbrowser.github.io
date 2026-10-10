@@ -43,7 +43,14 @@ export class ProfileStorage {
         browserType: (row.browser?.browser_type as any) || 'chrome',
         browserVersion: row.browser?.browser_version || '131.0.6778.86',
         notes: row.profile.notes || '',
-        tags: row.profile.tags ? JSON.parse(row.profile.tags) : [],
+        group: (row.profile as any).group || 'Default',
+        tags: (() => {
+          try {
+            return row.profile.tags ? JSON.parse(row.profile.tags) : [];
+          } catch {
+            return [];
+          }
+        })(),
         color: row.profile.color || '#3b82f6',
         createdAt: row.profile.created_at,
         updatedAt: row.profile.updated_at || row.profile.created_at,
@@ -62,6 +69,7 @@ export class ProfileStorage {
       if (Array.isArray(parsed)) {
         return parsed.map((p) => ({
           ...p,
+          group: p.group || 'Default',
           storagePath: p.storagePath || AppPaths.getProfileStorageDir(p.id),
           status: p.status || 'stopped',
           lastUsedAt: p.lastUsedAt || null,
@@ -94,6 +102,7 @@ export class ProfileStorage {
           color: profile.color,
           notes: profile.notes || '',
           tags: JSON.stringify(profile.tags || []),
+          group: (profile as any).group || 'Default',
         },
         {
           profile_id: profile.id,

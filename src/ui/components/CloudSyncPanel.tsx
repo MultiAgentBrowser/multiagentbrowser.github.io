@@ -42,6 +42,7 @@ export const CloudSyncPanel: React.FC<CloudSyncPanelProps> = ({
     try {
       const { auth } = getFirebaseServices();
       return onAuthStateChanged(auth, (account) => {
+        onAuthChanged(false);
         setUser(account);
         if (account) {
           setBusy(true);
@@ -76,6 +77,7 @@ export const CloudSyncPanel: React.FC<CloudSyncPanelProps> = ({
           });
           onAuthChanged(false);
           setStatus('');
+          onProfilesUpdated();
         }
       }, (authError) => {
         setError(authError.message);
@@ -162,6 +164,7 @@ export const CloudSyncPanel: React.FC<CloudSyncPanelProps> = ({
     setError('');
     try {
       const { auth } = getFirebaseServices();
+      await window.browserAPI.setAuthenticatedUser(null);
       await signOut(auth);
     } catch (authError) {
       setError(authError instanceof Error ? authError.message : String(authError));

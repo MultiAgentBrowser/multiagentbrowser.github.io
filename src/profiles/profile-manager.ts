@@ -35,6 +35,7 @@ export class ProfileManager {
     browserType?: 'chrome' | 'edge' | 'brave';
     browserVersion?: string;
     notes?: string;
+    group?: string;
     tags?: string[];
     color: string;
   }): ProfileRecord {
@@ -49,6 +50,7 @@ export class ProfileManager {
       browserType: data.browserType || 'chrome',
       browserVersion: data.browserVersion || '131.0.6778.86',
       notes: data.notes || '',
+      group: data.group || 'Default',
       tags: data.tags || [],
       createdAt: now,
       updatedAt: now,
@@ -73,6 +75,7 @@ export class ProfileManager {
       browserType: dto.browserType || 'chrome',
       browserVersion: dto.browserVersion || '131.0.6778.86',
       notes: dto.notes || '',
+      group: dto.group || 'Default',
       tags: dto.tags || [],
       color: dto.color || '#8b5cf6',
     });
@@ -166,6 +169,7 @@ export class ProfileManager {
     if (dto.browserType !== undefined) profile.browserType = dto.browserType;
     if (dto.browserVersion !== undefined) profile.browserVersion = dto.browserVersion;
     if (dto.notes !== undefined) profile.notes = dto.notes;
+    if (dto.group !== undefined) profile.group = dto.group;
     if (dto.tags !== undefined) profile.tags = dto.tags;
     if (dto.color !== undefined) profile.color = dto.color;
     profile.updatedAt = Date.now();
@@ -208,6 +212,7 @@ export class ProfileManager {
       browserType: source.browserType,
       browserVersion: source.browserVersion,
       notes: source.notes,
+      group: source.group,
       tags: [...source.tags],
       color: source.color,
     });

@@ -7,6 +7,12 @@ export interface ProxyTestResult {
   error?: string;
 }
 
+export interface ProxyRotateResult {
+  success: boolean;
+  message: string;
+  newIp?: string;
+}
+
 export class ProxyTester {
   /**
    * Tests socket reachability to the specified proxy host and port.
@@ -59,6 +65,36 @@ export class ProxyTester {
         });
       }
     });
+  }
+
+  /**
+   * Trigger an IP change / rotation request using the provider's rotation URL.
+   */
+  public static async rotateProxyIp(changeIpUrl: string): Promise<ProxyRotateResult> {
+    if (!changeIpUrl || !changeIpUrl.trim().startsWith('http')) {
+      return {
+        success: false,
+        message: 'Invalid rotation URL provided. Must start with http:// or https://',
+      };
+    }
+
+    try {
+      const response = await fetch(changeIpUrl.trim(), {
+        method: 'GET',
+        headers: { 'User-Agent': 'Mozilla/5.0 Antidetect/1.0' },
+      });
+      const text = await response.text();
+      return {
+        success: response.ok,
+        message: response.ok ? 'Rotation signal sent successfully' : `HTTP Error ${response.status}: ${text.slice(0, 100)}`,
+        newIp: text.trim().slice(0, 60),
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err.message || 'Failed to reach rotation endpoint',
+      };
+    }
   }
 }
 

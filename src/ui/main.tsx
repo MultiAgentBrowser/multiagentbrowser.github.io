@@ -24,7 +24,8 @@ const App: React.FC = () => {
 
   const handleAuthChanged = useCallback((authenticated: boolean) => {
     setIsAuthenticated(authenticated);
-  }, []);
+    void refreshProfiles();
+  }, [refreshProfiles]);
 
   // Always load profiles immediately upon app launch
   useEffect(() => {
@@ -54,6 +55,7 @@ const App: React.FC = () => {
         {profilesLoaded ? (
           <ProfileSwitcher
             profiles={profiles}
+            isAuthenticated={isAuthenticated}
             onRefreshProfiles={refreshProfiles}
           />
         ) : (

@@ -14,6 +14,7 @@ export interface ProfileDBRow {
   color: string;
   notes: string;
   tags: string; // JSON array
+  group?: string;
 }
 
 export interface ProxySettingsRow {

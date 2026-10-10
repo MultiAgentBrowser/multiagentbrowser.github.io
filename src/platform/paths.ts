@@ -4,6 +4,11 @@ import fs from 'fs';
 
 export class AppPaths {
   private static appName = 'PrivacyBrowser';
+  private static customAppDataDir: string | null = null;
+
+  public static setCustomAppDataDir(dir: string | null): void {
+    this.customAppDataDir = dir;
+  }
 
   /**
    * Resolves the root application data directory:
@@ -12,6 +17,19 @@ export class AppPaths {
    * - Linux: ~/.config/PrivacyBrowser
    */
   public static getAppDataDir(): string {
+    if (this.customAppDataDir) {
+      if (!fs.existsSync(this.customAppDataDir)) {
+        fs.mkdirSync(this.customAppDataDir, { recursive: true });
+      }
+      return this.customAppDataDir;
+    }
+    if (process.env.APP_DATA_DIR) {
+      if (!fs.existsSync(process.env.APP_DATA_DIR)) {
+        fs.mkdirSync(process.env.APP_DATA_DIR, { recursive: true });
+      }
+      return process.env.APP_DATA_DIR;
+    }
+
     const platform = process.platform;
     let baseDir = '';
 

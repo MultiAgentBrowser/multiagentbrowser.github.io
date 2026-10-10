@@ -27,6 +27,7 @@ export const ProfileRecordSchema = z.object({
   status: z.enum(['stopped', 'running', 'crashed']).default('stopped'),
   lastUsedAt: z.number().nullable().default(null),
   notes: z.string().max(10000).default(''),
+  group: z.string().default('Default'),
   tags: z.array(z.string().max(64)).max(20).default([]),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#3b82f6'),
   createdAt: z.number(),
@@ -53,6 +54,7 @@ export interface CreateProfileDTO {
   browserType?: 'chrome' | 'edge' | 'brave';
   browserVersion?: string;
   notes?: string;
+  group?: string;
   tags?: string[];
   color?: string;
 }
@@ -66,6 +68,7 @@ export interface UpdateProfileDTO {
   browserType?: 'chrome' | 'edge' | 'brave';
   browserVersion?: string;
   notes?: string;
+  group?: string;
   tags?: string[];
   color?: string;
 }

@@ -37,10 +37,16 @@ const IPC_CHANNELS = {
   COOKIE_GET: 'cookie:get',
   COOKIE_DELETE: 'cookie:delete',
   COOKIE_CLEAR_ALL: 'cookie:clear-all',
+  COOKIE_EXPORT: 'cookie:export',
+  COOKIE_IMPORT: 'cookie:import',
   STORAGE_CLEAR: 'storage:clear',
 
   // Network & Proxy
   PROXY_TEST: 'proxy:test',
+  PROXY_ROTATE_IP: 'proxy:rotate-ip',
+  PROXY_LIST_SAVED: 'proxy:list-saved',
+  PROXY_SAVE: 'proxy:save',
+  PROXY_DELETE_SAVED: 'proxy:delete-saved',
 
   // Permissions
   PERMISSION_LIST: 'permission:list',
@@ -94,12 +100,24 @@ const browserAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.COOKIE_DELETE, { profileId, url, name }),
   clearAllCookies: (profileId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.COOKIE_CLEAR_ALL, { profileId }),
+  exportCookies: (profileId: string, format: 'json' | 'netscape' = 'json'): Promise<string> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COOKIE_EXPORT, { profileId, format }),
+  importCookies: (profileId: string, cookieData: string): Promise<{ imported: number; errors: number }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.COOKIE_IMPORT, { profileId, cookieData }),
   clearStorage: (profileId: string, categories?: string[]) =>
     ipcRenderer.invoke(IPC_CHANNELS.STORAGE_CLEAR, { profileId, categories }),
 
   // Network & Proxy
   testProxy: (config: any) =>
     ipcRenderer.invoke(IPC_CHANNELS.PROXY_TEST, { config }),
+  rotateProxyIp: (changeIpUrl: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROXY_ROTATE_IP, { changeIpUrl }),
+  listSavedProxies: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROXY_LIST_SAVED),
+  saveProxy: (proxy: any) =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROXY_SAVE, { proxy }),
+  deleteSavedProxy: (id: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROXY_DELETE_SAVED, { id }),
 
   // Permissions
   listPermissions: (profileId: string) =>

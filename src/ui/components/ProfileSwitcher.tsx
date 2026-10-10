@@ -21,24 +21,33 @@ import {
   ExternalLink,
   Edit2,
   Loader2,
+  RotateCw,
+  Folder,
+  Cookie,
+  FileText,
+  Bookmark,
 } from 'lucide-react';
-import { Profile, ProxyConfig } from '../../security/ipc-contracts';
+import { Profile, ProxyConfig, SavedProxy } from '../../security/ipc-contracts';
 import { AVAILABLE_BROWSERS, getBrowserUserAgent } from '../../profiles/browser-definitions';
 
 interface ProfileSwitcherProps {
   profiles: Profile[];
+  isAuthenticated: boolean;
   onRefreshProfiles: () => void;
 }
 
 export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   profiles,
+  isAuthenticated,
   onRefreshProfiles,
 }) => {
   // Navigation & filtering state
   const [searchQuery, setSearchQuery] = useState('');
   const [filterOS, setFilterOS] = useState<'all' | 'mac' | 'windows'>('all');
   const [filterBrowser, setFilterBrowser] = useState<'all' | 'chrome' | 'edge' | 'brave'>('all');
+  const [filterGroup, setFilterGroup] = useState<string>('all');
   const [runningProfileIds, setRunningProfileIds] = useState<string[]>([]);
+  const [selectedProfileIds, setSelectedProfileIds] = useState<string[]>([]);
 
   // Creation & Editing modal state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -46,6 +55,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
 
   // Form fields
   const [name, setName] = useState('');
+  const [group, setGroup] = useState('Default');
   const [os, setOs] = useState<'mac' | 'windows'>('mac');
   const [browserType, setBrowserType] = useState<'chrome' | 'edge' | 'brave'>('chrome');
   const [browserVersion, setBrowserVersion] = useState<string>('131.0.6778.86');
@@ -62,14 +72,25 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   const [proxyPort, setProxyPort] = useState<number>(9050);
   const [proxyUsername, setProxyUsername] = useState('');
   const [proxyPassword, setProxyPassword] = useState('');
+  const [changeIpUrl, setChangeIpUrl] = useState('');
+  const [savedProxies, setSavedProxies] = useState<SavedProxy[]>([]);
+  const [selectedSavedProxyId, setSelectedSavedProxyId] = useState<string>('');
 
-  // Proxy test state
+  // Proxy test and rotation state
   const [testingProxy, setTestingProxy] = useState(false);
   const [proxyTestResult, setProxyTestResult] = useState<{ success: boolean; latencyMs?: number; error?: string } | null>(null);
+  const [rotatingProfileId, setRotatingProfileId] = useState<string | null>(null);
 
   // Import JSON drawer
   const [showImport, setShowImport] = useState(false);
   const [importJson, setImportJson] = useState('');
+
+  // Cookie Drawer Modal
+  const [cookieModalProfile, setCookieModalProfile] = useState<Profile | null>(null);
+  const [cookieModalContent, setCookieModalContent] = useState('');
+  const [cookieModalFormat, setCookieModalFormat] = useState<'json' | 'netscape'>('json');
+  const [cookieImportText, setCookieImportText] = useState('');
+  const [cookieStatusMsg, setCookieStatusMsg] = useState('');
 
   // Fetch running profiles
   useEffect(() => {
@@ -88,15 +109,66 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     }
   }, []);
 
+  // Load saved proxies on mount
+  useEffect(() => {
+    if (window.browserAPI && (window.browserAPI as any).listSavedProxies) {
+      (window.browserAPI as any).listSavedProxies().then((list: SavedProxy[]) => {
+        setSavedProxies(list || []);
+      });
+    }
+  }, []);
+
+  const groups = Array.from(new Set(profiles.map((p) => (p as any).group || 'Default')));
+
   const filteredProfiles = profiles.filter((p) => {
-    const matchesQuery = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (p as any).notes?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.proxy.host.toLowerCase().includes(searchQuery.toLowerCase());
+    const q = searchQuery.toLowerCase().trim();
+    const matchesQuery = !q ||
+      (p.name || '').toLowerCase().includes(q) ||
+      ((p as any).notes || '').toLowerCase().includes(q) ||
+      (p.proxy?.host || '').toLowerCase().includes(q);
     const matchesOS = filterOS === 'all' || (p as any).os === filterOS;
     const pBrowser = (p as any).browserType || 'chrome';
     const matchesBrowser = filterBrowser === 'all' || pBrowser === filterBrowser;
-    return matchesQuery && matchesOS && matchesBrowser;
+    const pGroup = (p as any).group || 'Default';
+    const matchesGroup = filterGroup === 'all' || pGroup === filterGroup;
+    return matchesQuery && matchesOS && matchesBrowser && matchesGroup;
   });
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedProfileIds(filteredProfiles.map((p) => p.id));
+    } else {
+      setSelectedProfileIds([]);
+    }
+  };
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedProfileIds((prev) =>
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkLaunch = async () => {
+    for (const id of selectedProfileIds) {
+      await handleLaunch(id);
+    }
+  };
+
+  const handleBulkStop = async () => {
+    for (const id of selectedProfileIds) {
+      await handleStop(id);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (confirm(`Delete ${selectedProfileIds.length} selected profiles permanently?`)) {
+      for (const id of selectedProfileIds) {
+        await window.browserAPI.deleteProfile(id);
+      }
+      setSelectedProfileIds([]);
+      onRefreshProfiles();
+    }
+  };
 
   const handleLaunch = async (profileId: string) => {
     if (window.browserAPI && (window.browserAPI as any).launchProfile) {
@@ -122,9 +194,75 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     }
   };
 
+  const handleRotateProxy = async (profileId: string, url?: string) => {
+    if (!url) {
+      alert('No rotation / change IP URL configured for this proxy.');
+      return;
+    }
+    setRotatingProfileId(profileId);
+    try {
+      const res = await (window.browserAPI as any).rotateProxyIp(url);
+      if (res.success) {
+        alert(`Proxy rotated successfully! Response: ${res.newIp || res.message}`);
+      } else {
+        alert(`Proxy rotation failed: ${res.message}`);
+      }
+    } catch (err: any) {
+      alert(`Error rotating proxy: ${err.message}`);
+    } finally {
+      setRotatingProfileId(null);
+    }
+  };
+
+  const handleOpenCookieModal = async (profile: Profile) => {
+    setCookieModalProfile(profile);
+    setCookieStatusMsg('');
+    setCookieImportText('');
+    setCookieModalFormat('json');
+    if (window.browserAPI && (window.browserAPI as any).exportCookies) {
+      const data = await (window.browserAPI as any).exportCookies(profile.id, 'json');
+      setCookieModalContent(data);
+    }
+  };
+
+  const handleExportCookiesFormat = async (format: 'json' | 'netscape') => {
+    setCookieModalFormat(format);
+    if (cookieModalProfile && window.browserAPI && (window.browserAPI as any).exportCookies) {
+      const data = await (window.browserAPI as any).exportCookies(cookieModalProfile.id, format);
+      setCookieModalContent(data);
+    }
+  };
+
+  const handleDownloadCookieFile = () => {
+    if (!cookieModalProfile) return;
+    const ext = cookieModalFormat === 'json' ? 'json' : 'txt';
+    const blob = new Blob([cookieModalContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cookies-${cookieModalProfile.name.replace(/\s+/g, '_')}.${ext}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportCookiesSubmit = async () => {
+    if (!cookieModalProfile || !cookieImportText.trim()) return;
+    try {
+      const result = await (window.browserAPI as any).importCookies(cookieModalProfile.id, cookieImportText.trim());
+      setCookieStatusMsg(`✓ Imported ${result.imported} cookies (${result.errors} errors)`);
+      setCookieImportText('');
+      const updated = await (window.browserAPI as any).exportCookies(cookieModalProfile.id, cookieModalFormat);
+      setCookieModalContent(updated);
+    } catch (err: any) {
+      setCookieStatusMsg(`✗ Import failed: ${err.message}`);
+    }
+  };
+
   const handleOpenCreate = () => {
+    if (!isAuthenticated) return;
     setEditingProfileId(null);
     setName(`Profile ${profiles.length + 1}`);
+    setGroup('Default');
     setOs('mac');
     setBrowserType('chrome');
     setBrowserVersion('131.0.6778.86');
@@ -139,13 +277,17 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     setProxyPort(9050);
     setProxyUsername('');
     setProxyPassword('');
+    setChangeIpUrl('');
+    setSelectedSavedProxyId('');
     setProxyTestResult(null);
     setIsCreateOpen(true);
   };
 
   const handleOpenEdit = (p: Profile) => {
+    if (!isAuthenticated) return;
     setEditingProfileId(p.id);
     setName(p.name);
+    setGroup((p as any).group || 'Default');
     setOs((p as any).os || 'mac');
     setBrowserType((p as any).browserType || 'chrome');
     setBrowserVersion((p as any).browserVersion || '131.0.6778.86');
@@ -160,12 +302,49 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     setProxyPort(p.proxy.port);
     setProxyUsername(p.proxy.username || '');
     setProxyPassword(p.proxy.password || '');
+    setChangeIpUrl((p.proxy as any).changeIpUrl || '');
+    setSelectedSavedProxyId('');
     setProxyTestResult(null);
     setIsCreateOpen(true);
   };
 
+  const handleSelectSavedProxy = (proxyId: string) => {
+    setSelectedSavedProxyId(proxyId);
+    if (!proxyId) return;
+    const found = savedProxies.find((p) => p.id === proxyId);
+    if (found) {
+      setProxyEnabled(true);
+      setProxyMode(found.mode);
+      setProxyHost(found.host);
+      setProxyPort(found.port);
+      setProxyUsername(found.username || '');
+      setProxyPassword(found.password || '');
+      setChangeIpUrl(found.changeIpUrl || '');
+    }
+  };
+
+  const handleSaveCurrentProxyToPool = async () => {
+    if (!proxyHost.trim() || !window.browserAPI) return;
+    const newProxy: SavedProxy = {
+      id: `proxy-${Date.now()}`,
+      name: `${proxyHost}:${proxyPort}`,
+      mode: proxyMode === 'direct' ? 'socks5' : proxyMode,
+      host: proxyHost.trim(),
+      port: Number(proxyPort) || 8080,
+      username: proxyUsername ? proxyUsername.trim() : undefined,
+      password: proxyPassword ? proxyPassword.trim() : undefined,
+      changeIpUrl: changeIpUrl ? changeIpUrl.trim() : undefined,
+      group: group || 'Default',
+      createdAt: Date.now(),
+    };
+    await (window.browserAPI as any).saveProxy(newProxy);
+    const updated = await (window.browserAPI as any).listSavedProxies();
+    setSavedProxies(updated);
+    alert('Proxy saved to Proxy Pool!');
+  };
+
   const handleSaveProfile = async (andLaunch: boolean = false) => {
-    if (!name.trim() || !window.browserAPI) return;
+    if (!isAuthenticated || !name.trim() || !window.browserAPI) return;
 
     const proxyData: ProxyConfig = {
       enabled: proxyEnabled,
@@ -174,6 +353,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
       port: Number(proxyPort) || 8080,
       username: proxyUsername ? proxyUsername.trim() : undefined,
       password: proxyPassword ? proxyPassword.trim() : undefined,
+      changeIpUrl: changeIpUrl ? changeIpUrl.trim() : undefined,
     };
 
     if (editingProfileId) {
@@ -186,6 +366,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
         browserType,
         browserVersion,
         notes,
+        group,
         color,
       } as any);
       if (andLaunch) {
@@ -202,6 +383,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
         browserType,
         browserVersion,
         notes,
+        group,
         color,
       } as any);
 
@@ -234,6 +416,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   };
 
   const handleDelete = async (profileId: string) => {
+    if (!isAuthenticated) return;
     if (confirm('Delete this profile permanently and wipe all stored cookies & partition data?')) {
       await window.browserAPI.deleteProfile(profileId);
       onRefreshProfiles();
@@ -241,6 +424,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   };
 
   const handleDuplicate = async (profileId: string) => {
+    if (!isAuthenticated) return;
     await window.browserAPI.duplicateProfile(profileId);
     onRefreshProfiles();
   };
@@ -258,7 +442,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
 
   const handleImportSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!importJson.trim()) return;
+    if (!isAuthenticated || !importJson.trim()) return;
     try {
       await window.browserAPI.importProfile(importJson.trim());
       setImportJson('');
@@ -342,7 +526,9 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
+              disabled={!isAuthenticated}
               onClick={() => setShowImport(!showImport)}
+              title={!isAuthenticated ? 'Sign in to import profiles' : 'Import Profile'}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -361,7 +547,9 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
             </button>
 
             <button
+              disabled={!isAuthenticated}
               onClick={handleOpenCreate}
+              title={!isAuthenticated ? 'Sign in to create profiles' : 'Create Profile'}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -428,6 +616,28 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 12, color: '#8b92a2', marginRight: 2 }}>Folder:</span>
+              <select
+                value={filterGroup}
+                onChange={(e) => setFilterGroup(e.target.value)}
+                style={{
+                  padding: '5px 8px',
+                  borderRadius: 6,
+                  border: '1px solid #33384c',
+                  backgroundColor: '#222533',
+                  color: '#ffffff',
+                  fontSize: 11,
+                  outline: 'none',
+                }}
+              >
+                <option value="all">All Folders</option>
+                {groups.map((g) => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: 12, color: '#8b92a2', marginRight: 2 }}>Browser:</span>
               {(['all', 'chrome', 'edge', 'brave'] as const).map((mode) => (
                 <button
@@ -472,6 +682,101 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Bulk Actions Banner */}
+        {selectedProfileIds.length > 0 && (
+          <div
+            style={{
+              padding: '10px 24px',
+              backgroundColor: '#1e2438',
+              borderBottom: '1px solid #333d60',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 12, color: '#93c5fd', fontWeight: 600 }}>
+                {selectedProfileIds.length} profiles selected
+              </span>
+              <button
+                onClick={() => setSelectedProfileIds([])}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#94a3b8',
+                  fontSize: 11,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                }}
+              >
+                Clear selection
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                onClick={handleBulkLaunch}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '6px 12px',
+                  backgroundColor: '#10b981',
+                  border: 'none',
+                  borderRadius: 6,
+                  color: '#fff',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                <Play size={12} fill="#fff" />
+                Launch Selected
+              </button>
+
+              <button
+                onClick={handleBulkStop}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '6px 12px',
+                  backgroundColor: '#f59e0b',
+                  border: 'none',
+                  borderRadius: 6,
+                  color: '#fff',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                <Square size={12} fill="#fff" />
+                Stop Selected
+              </button>
+
+              <button
+                onClick={handleBulkDelete}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '6px 12px',
+                  backgroundColor: '#ef4444',
+                  border: 'none',
+                  borderRadius: 6,
+                  color: '#fff',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                <Trash2 size={12} />
+                Delete Selected
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Import JSON drawer */}
         {showImport && (
@@ -518,8 +823,16 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #232636', color: '#8b92a2', fontSize: 11, textTransform: 'uppercase' }}>
-                <th style={{ padding: '12px 24px' }}>Profile Name</th>
+                <th style={{ padding: '12px 16px', width: 40 }}>
+                  <input
+                    type="checkbox"
+                    checked={filteredProfiles.length > 0 && selectedProfileIds.length === filteredProfiles.length}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                  />
+                </th>
+                <th style={{ padding: '12px 16px' }}>Profile Name</th>
                 <th style={{ padding: '12px 16px' }}>Status</th>
+                <th style={{ padding: '12px 16px' }}>Folder</th>
                 <th style={{ padding: '12px 16px' }}>Browser Engine & Version</th>
                 <th style={{ padding: '12px 16px' }}>OS</th>
                 <th style={{ padding: '12px 16px' }}>Proxy</th>
@@ -534,6 +847,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                 const profileOs = (p as any).os || 'mac';
                 const profileBrowser = (p as any).browserType || 'chrome';
                 const profileVersion = (p as any).browserVersion || '131.0.6778.86';
+                const isSelected = selectedProfileIds.includes(p.id);
 
                 return (
                   <tr
@@ -541,13 +855,22 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                     style={{
                       borderBottom: '1px solid #20222f',
                       transition: 'background 0.15s ease',
-                      backgroundColor: isRunning ? 'rgba(16, 185, 129, 0.04)' : 'transparent',
+                      backgroundColor: isRunning ? 'rgba(16, 185, 129, 0.04)' : isSelected ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
                     }}
                     onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = isRunning ? 'rgba(16, 185, 129, 0.08)' : '#191b26')}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = isRunning ? 'rgba(16, 185, 129, 0.04)' : 'transparent')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = isRunning ? 'rgba(16, 185, 129, 0.04)' : isSelected ? 'rgba(59, 130, 246, 0.08)' : 'transparent')}
                   >
+                    {/* Checkbox */}
+                    <td style={{ padding: '14px 16px' }}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleToggleSelect(p.id)}
+                      />
+                    </td>
+
                     {/* Name & Tag */}
-                    <td style={{ padding: '14px 24px' }}>
+                    <td style={{ padding: '14px 16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <div
                           style={{
@@ -611,6 +934,23 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                       )}
                     </td>
 
+                    {/* Folder */}
+                    <td style={{ padding: '14px 16px' }}>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          backgroundColor: '#1e2433',
+                          color: '#93c5fd',
+                          padding: '3px 8px',
+                          borderRadius: 6,
+                          fontWeight: 500,
+                          border: '1px solid #2e3a59',
+                        }}
+                      >
+                        {(p as any).group || 'Default'}
+                      </span>
+                    </td>
+
                     {/* Browser & Version */}
                     <td style={{ padding: '14px 16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -641,25 +981,53 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                       </div>
                     </td>
 
-                    {/* Proxy */}
+                    {/* Proxy & Rotate IP */}
                     <td style={{ padding: '14px 16px' }}>
                       {hasProxy ? (
-                        <div>
-                          <span
-                            style={{
-                              fontSize: 11,
-                              backgroundColor: '#26293a',
-                              color: '#34d399',
-                              padding: '2px 6px',
-                              borderRadius: 4,
-                              fontWeight: 500,
-                            }}
-                          >
-                            {p.proxy.mode.toUpperCase()}
-                          </span>
-                          <span style={{ marginLeft: 6, color: '#e2e4e9', fontSize: 12 }}>
-                            {p.proxy.host}:{p.proxy.port}
-                          </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div>
+                            <span
+                              style={{
+                                fontSize: 11,
+                                backgroundColor: '#26293a',
+                                color: '#34d399',
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                                fontWeight: 500,
+                              }}
+                            >
+                              {p.proxy.mode.toUpperCase()}
+                            </span>
+                            <span style={{ marginLeft: 6, color: '#e2e4e9', fontSize: 12 }}>
+                              {p.proxy.host}:{p.proxy.port}
+                            </span>
+                          </div>
+                          {(p.proxy as any).changeIpUrl && (
+                            <button
+                              onClick={() => handleRotateProxy(p.id, (p.proxy as any).changeIpUrl)}
+                              disabled={rotatingProfileId === p.id}
+                              style={{
+                                background: '#1e293b',
+                                border: '1px solid #334155',
+                                borderRadius: 5,
+                                color: '#38bdf8',
+                                padding: '3px 6px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                fontSize: 10,
+                              }}
+                              title="Rotate IP (Change IP URL)"
+                            >
+                              {rotatingProfileId === p.id ? (
+                                <Loader2 size={11} className="animate-spin" />
+                              ) : (
+                                <RotateCw size={11} />
+                              )}
+                              Rotate
+                            </button>
+                          )}
                         </div>
                       ) : (
                         <span style={{ color: '#8b92a2', fontSize: 12 }}>Direct (No Proxy)</span>
@@ -678,11 +1046,9 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                       </div>
                     </td>
 
-
-
                     {/* Actions */}
                     <td style={{ padding: '14px 24px', textAlign: 'right' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
                         {isRunning ? (
                           <button
                             onClick={() => handleStop(p.id)}
@@ -727,6 +1093,22 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                         )}
 
                         <button
+                          onClick={() => handleOpenCookieModal(p)}
+                          style={{
+                            background: '#232634',
+                            border: '1px solid #32374b',
+                            borderRadius: 6,
+                            color: '#f59e0b',
+                            padding: 6,
+                            cursor: 'pointer',
+                          }}
+                          title="Manage Cookies (Import / Export)"
+                        >
+                          <Cookie size={14} />
+                        </button>
+
+                        <button
+                          disabled={!isAuthenticated}
                           onClick={() => handleOpenEdit(p)}
                           style={{
                             background: '#232634',
@@ -742,6 +1124,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                         </button>
 
                         <button
+                          disabled={!isAuthenticated}
                           onClick={() => handleDuplicate(p.id)}
                           style={{
                             background: '#232634',
@@ -772,6 +1155,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                         </button>
 
                         <button
+                          disabled={!isAuthenticated}
                           onClick={() => handleDelete(p.id)}
                           style={{
                             background: '#232634',
@@ -792,7 +1176,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
               })}
               {filteredProfiles.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ padding: '60px 24px', textAlign: 'center', color: '#8b92a2' }}>
+                  <td colSpan={9} style={{ padding: '60px 24px', textAlign: 'center', color: '#8b92a2' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                       <div style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: '#1f222e', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #2d3345' }}>
                         <User size={24} color="#60a5fa" />
@@ -807,6 +1191,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                       </div>
                       {!searchQuery && filterBrowser === 'all' && filterOS === 'all' && (
                         <button
+                          disabled={!isAuthenticated}
                           onClick={handleOpenCreate}
                           style={{
                             marginTop: 6,
@@ -873,6 +1258,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                 {editingProfileId ? 'Edit Profile Configuration' : 'Create New Profile'}
               </h3>
               <button
+                disabled={!isAuthenticated}
                 onClick={() => setIsCreateOpen(false)}
                 style={{ background: 'none', border: 'none', color: '#9ba1b0', cursor: 'pointer' }}
               >
@@ -882,7 +1268,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
 
             {/* Editor Form */}
             <div style={{ flex: 1, minHeight: 0, padding: '20px 22px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Profile Name & OS */}
+              {/* Profile Name, Folder & OS */}
               <div style={{ display: 'flex', gap: 12 }}>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
@@ -908,6 +1294,29 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                 </div>
 
                 <div style={{ width: 140 }}>
+                  <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
+                    Folder / Group
+                  </label>
+                  <input
+                    type="text"
+                    value={group}
+                    onChange={(e) => setGroup(e.target.value)}
+                    placeholder="Default"
+                    style={{
+                      width: '100%',
+                      padding: '9px 10px',
+                      backgroundColor: '#12131b',
+                      border: '1px solid #2f3448',
+                      borderRadius: 8,
+                      color: '#ffffff',
+                      fontSize: 13,
+                      boxSizing: 'border-box',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+
+                <div style={{ width: 130 }}>
                   <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
                     Emulated OS
                   </label>
@@ -1083,6 +1492,33 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
 
                 {proxyEnabled && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {/* Saved Proxy Pool Selector */}
+                    {savedProxies.length > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 11, color: '#9ba1b0' }}>Use Proxy from Pool:</span>
+                        <select
+                          value={selectedSavedProxyId}
+                          onChange={(e) => handleSelectSavedProxy(e.target.value)}
+                          style={{
+                            flex: 1,
+                            padding: '6px 8px',
+                            backgroundColor: '#0f1017',
+                            border: '1px solid #2f3448',
+                            borderRadius: 6,
+                            color: '#38bdf8',
+                            fontSize: 11,
+                          }}
+                        >
+                          <option value="">-- Choose saved proxy --</option>
+                          {savedProxies.map((sp) => (
+                            <option key={sp.id} value={sp.id}>
+                              {sp.name} ({sp.mode.toUpperCase()} - {sp.host}:{sp.port})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
                     <div style={{ display: 'flex', gap: 10 }}>
                       <select
                         value={proxyMode}
@@ -1170,6 +1606,48 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                           outline: 'none',
                         }}
                       />
+                    </div>
+
+                    {/* Change IP / Rotation URL */}
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                      <input
+                        type="text"
+                        placeholder="Rotation / Change IP URL (e.g. http://proxy-provider.com/rotate?key=xxx)"
+                        value={changeIpUrl}
+                        onChange={(e) => setChangeIpUrl(e.target.value)}
+                        style={{
+                          flex: 1,
+                          padding: '7px 10px',
+                          backgroundColor: '#0f1017',
+                          border: '1px solid #2f3448',
+                          borderRadius: 6,
+                          color: '#ffffff',
+                          fontSize: 11,
+                          outline: 'none',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveCurrentProxyToPool}
+                        disabled={!proxyHost.trim()}
+                        style={{
+                          padding: '7px 12px',
+                          backgroundColor: '#1e2433',
+                          border: '1px solid #334155',
+                          borderRadius: 6,
+                          color: '#38bdf8',
+                          fontSize: 11,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                        title="Save proxy to reusable pool"
+                      >
+                        <Bookmark size={12} />
+                        Save to Pool
+                      </button>
                     </div>
 
                     {proxyTestResult && (
@@ -1282,6 +1760,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
               </button>
 
               <button
+                disabled={!isAuthenticated}
                 type="button"
                 onClick={() => handleSaveProfile(false)}
                 style={{
@@ -1299,6 +1778,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
               </button>
 
               <button
+                disabled={!isAuthenticated}
                 type="button"
                 onClick={() => handleSaveProfile(true)}
                 style={{
@@ -1318,6 +1798,211 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
               >
                 <Play size={13} fill="#fff" />
                 Save & Launch
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cookie Import / Export Modal */}
+      {cookieModalProfile && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            backdropFilter: 'blur(4px)',
+          }}
+        >
+          <div
+            style={{
+              width: 600,
+              maxHeight: '90%',
+              backgroundColor: '#161822',
+              border: '1px solid #2e3347',
+              borderRadius: 12,
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.6)',
+            }}
+          >
+            <div
+              style={{
+                padding: '16px 20px',
+                borderBottom: '1px solid #282c3e',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Cookie size={18} color="#f59e0b" />
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: '#ffffff', margin: 0 }}>
+                  Cookie Manager — {cookieModalProfile.name}
+                </h3>
+              </div>
+              <button
+                onClick={() => setCookieModalProfile(null)}
+                style={{ background: 'none', border: 'none', color: '#9ba1b0', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ padding: '16px 20px', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Format Switcher & Download */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: '#9ba1b0' }}>Export Format:</span>
+                  {(['json', 'netscape'] as const).map((fmt) => (
+                    <button
+                      key={fmt}
+                      onClick={() => handleExportCookiesFormat(fmt)}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: 6,
+                        border: 'none',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        backgroundColor: cookieModalFormat === fmt ? '#f59e0b' : '#232634',
+                        color: cookieModalFormat === fmt ? '#000' : '#9ba1b0',
+                      }}
+                    >
+                      {fmt.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={handleDownloadCookieFile}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    padding: '5px 12px',
+                    backgroundColor: '#1e2434',
+                    border: '1px solid #333f5c',
+                    borderRadius: 6,
+                    color: '#38bdf8',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Download size={12} />
+                  Download Cookies
+                </button>
+              </div>
+
+              {/* Stored Cookies Preview */}
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: '#8b92a2', marginBottom: 4 }}>
+                  Stored Cookies ({cookieModalFormat.toUpperCase()})
+                </label>
+                <textarea
+                  readOnly
+                  value={cookieModalContent}
+                  rows={6}
+                  style={{
+                    width: '100%',
+                    backgroundColor: '#0f1017',
+                    border: '1px solid #282c3e',
+                    borderRadius: 6,
+                    color: '#a3e635',
+                    padding: 8,
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+
+              {/* Import Cookies Area */}
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: '#8b92a2', marginBottom: 4 }}>
+                  Import Cookies (Paste JSON array or Netscape lines)
+                </label>
+                <textarea
+                  placeholder="Paste cookies here..."
+                  value={cookieImportText}
+                  onChange={(e) => setCookieImportText(e.target.value)}
+                  rows={4}
+                  style={{
+                    width: '100%',
+                    backgroundColor: '#0f1017',
+                    border: '1px solid #282c3e',
+                    borderRadius: 6,
+                    color: '#ffffff',
+                    padding: 8,
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+
+              {cookieStatusMsg && (
+                <div
+                  style={{
+                    fontSize: 12,
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    backgroundColor: cookieStatusMsg.startsWith('✓') ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                    color: cookieStatusMsg.startsWith('✓') ? '#34d399' : '#f87171',
+                  }}
+                >
+                  {cookieStatusMsg}
+                </div>
+              )}
+            </div>
+
+            <div
+              style={{
+                padding: '12px 20px',
+                borderTop: '1px solid #282c3e',
+                backgroundColor: '#13141c',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 8,
+              }}
+            >
+              <button
+                onClick={() => setCookieModalProfile(null)}
+                style={{
+                  padding: '6px 14px',
+                  backgroundColor: '#232635',
+                  border: '1px solid #33384c',
+                  borderRadius: 6,
+                  color: '#9ba1b0',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                }}
+              >
+                Close
+              </button>
+              <button
+                onClick={handleImportCookiesSubmit}
+                disabled={!cookieImportText.trim()}
+                style={{
+                  padding: '6px 16px',
+                  backgroundColor: '#10b981',
+                  border: 'none',
+                  borderRadius: 6,
+                  color: '#fff',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Import Cookies
               </button>
             </div>
           </div>

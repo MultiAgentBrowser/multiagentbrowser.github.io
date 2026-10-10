@@ -17,8 +17,23 @@ export const ProxyConfigSchema = z.object({
   port: z.number().int().min(1).max(65535).default(8080),
   username: z.string().optional(),
   password: z.string().optional(),
+  changeIpUrl: z.string().optional(),
 });
 export type ProxyConfig = z.infer<typeof ProxyConfigSchema>;
+
+export const SavedProxySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  mode: z.enum(['http', 'https', 'socks5']),
+  host: z.string(),
+  port: z.number().int().min(1).max(65535),
+  username: z.string().optional(),
+  password: z.string().optional(),
+  changeIpUrl: z.string().optional(),
+  group: z.string().default('Default'),
+  createdAt: z.number(),
+});
+export type SavedProxy = z.infer<typeof SavedProxySchema>;
 
 export const BrowserTypeSchema = z.enum(['chrome', 'edge', 'brave']);
 export type BrowserType = z.infer<typeof BrowserTypeSchema>;
@@ -42,6 +57,7 @@ export const ProfileSchema = z.object({
   status: z.enum(['stopped', 'running', 'crashed']).default('stopped'),
   lastUsedAt: z.number().nullable().default(null),
   notes: z.string().default(''),
+  group: z.string().default('Default'),
   tags: z.array(z.string()).default([]),
   color: z.string().default('#3b82f6'),
   createdAt: z.number(),
@@ -109,10 +125,16 @@ export const IPC_CHANNELS = {
   COOKIE_GET: 'cookie:get',
   COOKIE_DELETE: 'cookie:delete',
   COOKIE_CLEAR_ALL: 'cookie:clear-all',
+  COOKIE_EXPORT: 'cookie:export',
+  COOKIE_IMPORT: 'cookie:import',
   STORAGE_CLEAR: 'storage:clear',
 
   // Network & Proxy
   PROXY_TEST: 'proxy:test',
+  PROXY_ROTATE_IP: 'proxy:rotate-ip',
+  PROXY_LIST_SAVED: 'proxy:list-saved',
+  PROXY_SAVE: 'proxy:save',
+  PROXY_DELETE_SAVED: 'proxy:delete-saved',
 
   // Permissions
   PERMISSION_LIST: 'permission:list',

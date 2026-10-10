@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { ProfileManager } from '../../src/profiles/profile-manager';
 import { ProfileDatabase } from '../../src/database/profile-database';
 import { ProfileLock } from '../../src/profiles/profile-lock';
@@ -7,16 +7,16 @@ import { ProfileStorage } from '../../src/profiles/profile-storage';
 import { AppPaths } from '../../src/platform/paths';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
 describe('ProfileManager Lifecycle & Storage Isolation', () => {
   let manager: ProfileManager;
+  let tempTestDir: string;
 
   beforeEach(() => {
-    ProfileDatabase.getInstance().clear();
-    const manifest = path.join(AppPaths.getProfilesDir(), 'profiles.json');
-    if (fs.existsSync(manifest)) {
-      fs.unlinkSync(manifest);
-    }
+    tempTestDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-pm-'));
+    AppPaths.setCustomAppDataDir(tempTestDir);
+    ProfileDatabase.setInstance(new ProfileDatabase());
     manager = new ProfileManager();
   });
 
@@ -206,10 +206,14 @@ describe('ProfileManager Lifecycle & Storage Isolation', () => {
   });
 
   afterEach(() => {
-    ProfileDatabase.getInstance().clear();
-    const manifest = path.join(AppPaths.getProfilesDir(), 'profiles.json');
-    if (fs.existsSync(manifest)) {
-      fs.unlinkSync(manifest);
+    AppPaths.setCustomAppDataDir(null);
+    ProfileDatabase.setInstance(null as any);
+    if (tempTestDir && fs.existsSync(tempTestDir)) {
+      try {
+        fs.rmSync(tempTestDir, { recursive: true, force: true });
+      } catch {
+        // cleanup ignore
+      }
     }
   });
 });

@@ -21,6 +21,7 @@ describe('Cloud profile serialization', () => {
       os: 'mac',
       browserType: 'chrome',
       browserVersion: '154.0.8037.98',
+      group: 'Work',
       storagePath: '/private/profile/path',
       status: 'running',
       lastUsedAt: 123,
@@ -38,6 +39,7 @@ describe('Cloud profile serialization', () => {
     expect(cloudData).not.toHaveProperty('lastUsedAt');
     expect(cloudData).toMatchObject({
       isTemporary: false,
+      group: 'Work',
       proxy: { enabled: true, host: 'proxy.example.com', port: 8080 },
     });
     expect(cloudData.proxy).not.toHaveProperty('username');

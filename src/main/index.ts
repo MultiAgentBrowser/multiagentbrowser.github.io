@@ -65,8 +65,8 @@ function registerIpcHandlers() {
       throw new Error('Only the application window can change the signed-in user.');
     }
     const transition = ++authTransition;
+    authenticatedUserId = null;
     if (credentials === null) {
-      authenticatedUserId = null;
       return;
     }
 
@@ -90,39 +90,37 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle(IPC_CHANNELS.PROFILE_CREATE, async (_event, data) => {
+    requireAuthenticatedUser();
     const profile = profileManager.createProfile(data);
-    if (authenticatedUserId) {
-      mainWindow?.webContents.send(IPC_CHANNELS.PROFILE_SYNC_CHANGED, { type: 'upsert', profileId: profile.id });
-    }
+    mainWindow?.webContents.send(IPC_CHANNELS.PROFILE_SYNC_CHANGED, { type: 'upsert', profileId: profile.id });
     return profile;
   });
 
   ipcMain.handle(IPC_CHANNELS.PROFILE_UPDATE, async (_event, { profileId, data }) => {
+    requireAuthenticatedUser();
     const profile = profileManager.updateProfile(profileId, data);
-    if (authenticatedUserId) {
-      mainWindow?.webContents.send(IPC_CHANNELS.PROFILE_SYNC_CHANGED, { type: 'upsert', profileId });
-    }
+    mainWindow?.webContents.send(IPC_CHANNELS.PROFILE_SYNC_CHANGED, { type: 'upsert', profileId });
     return profile;
   });
 
   ipcMain.handle(IPC_CHANNELS.PROFILE_DELETE, async (_event, { profileId }) => {
+    requireAuthenticatedUser();
     const wasRunning = ProfileLock.isLocked(profileId);
     const stopped = await BrowserWindowManager.stopProfileWindow(profileId);
     if (wasRunning && !stopped) {
       throw new Error(`Could not stop profile before deleting it: ${profileId}`);
     }
     const deleted = profileManager.deleteProfile(profileId);
-    if (deleted && authenticatedUserId) {
+    if (deleted) {
       mainWindow?.webContents.send(IPC_CHANNELS.PROFILE_SYNC_CHANGED, { type: 'delete', profileId });
     }
     return deleted;
   });
 
   ipcMain.handle(IPC_CHANNELS.PROFILE_DUPLICATE, async (_event, { profileId }) => {
+    requireAuthenticatedUser();
     const profile = profileManager.duplicateProfile(profileId);
-    if (authenticatedUserId) {
-      mainWindow?.webContents.send(IPC_CHANNELS.PROFILE_SYNC_CHANGED, { type: 'upsert', profileId: profile.id });
-    }
+    mainWindow?.webContents.send(IPC_CHANNELS.PROFILE_SYNC_CHANGED, { type: 'upsert', profileId: profile.id });
     return profile;
   });
 
@@ -131,10 +129,9 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle(IPC_CHANNELS.PROFILE_IMPORT, async (_event, { jsonContent }) => {
+    requireAuthenticatedUser();
     const profile = profileManager.importProfile(jsonContent);
-    if (authenticatedUserId) {
-      mainWindow?.webContents.send(IPC_CHANNELS.PROFILE_SYNC_CHANGED, { type: 'upsert', profileId: profile.id });
-    }
+    mainWindow?.webContents.send(IPC_CHANNELS.PROFILE_SYNC_CHANGED, { type: 'upsert', profileId: profile.id });
     return profile;
   });
 
@@ -144,11 +141,13 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle(IPC_CHANNELS.PROFILE_SET_ACTIVE, async (_event, { profileId }) => {
+    requireAuthenticatedUser();
     return profileManager.setActiveProfile(profileId);
   });
 
   // Launch each profile in its own Chromium app process and user-data directory.
   ipcMain.handle(IPC_CHANNELS.PROFILE_LAUNCH, async (_event, { profileId }) => {
+    requireAuthenticatedUser();
     return BrowserInstanceManager.launchProfile(profileId);
   });
 
@@ -176,15 +175,45 @@ function registerIpcHandlers() {
     return CookieManager.clearAllCookies(profileId);
   });
 
+  ipcMain.handle(IPC_CHANNELS.COOKIE_EXPORT, async (_event, { profileId, format }) => {
+    const { CookieManager } = await import('../privacy/cookies/cookie-manager');
+    return CookieManager.exportCookies(profileId, format);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.COOKIE_IMPORT, async (_event, { profileId, cookieData }) => {
+    const { CookieManager } = await import('../privacy/cookies/cookie-manager');
+    return CookieManager.importCookies(profileId, cookieData);
+  });
+
   ipcMain.handle(IPC_CHANNELS.STORAGE_CLEAR, async (_event, { profileId, categories }) => {
     const { StorageCleaner } = await import('../privacy/cookies/storage-cleaner');
     return StorageCleaner.clearProfileStorage(profileId, categories);
   });
 
-  // Network & Proxy IPC handler
+  // Network & Proxy IPC handlers
   ipcMain.handle(IPC_CHANNELS.PROXY_TEST, async (_event, { config }) => {
     const { ProxyTester } = await import('../network/proxy/proxy-tester');
     return ProxyTester.testConnection(config);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.PROXY_ROTATE_IP, async (_event, { changeIpUrl }) => {
+    const { ProxyTester } = await import('../network/proxy/proxy-tester');
+    return ProxyTester.rotateProxyIp(changeIpUrl);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.PROXY_LIST_SAVED, async () => {
+    const { SavedProxyStorage } = await import('../network/proxy/saved-proxy-storage');
+    return SavedProxyStorage.list();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.PROXY_SAVE, async (_event, { proxy }) => {
+    const { SavedProxyStorage } = await import('../network/proxy/saved-proxy-storage');
+    return SavedProxyStorage.save(proxy);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.PROXY_DELETE_SAVED, async (_event, { id }) => {
+    const { SavedProxyStorage } = await import('../network/proxy/saved-proxy-storage');
+    return SavedProxyStorage.delete(id);
   });
 
   // Permission IPC handlers

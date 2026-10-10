@@ -3,6 +3,7 @@ import { ViewLayout } from './view-layout';
 import { NavigationController } from './navigation-controller';
 import { IPC_CHANNELS, TabInfo } from '../security/ipc-contracts';
 import path from 'path';
+import { createHash } from 'crypto';
 
 export interface TabView {
   tabId: string;
@@ -93,6 +94,11 @@ export class ViewManager {
     const { ProfileStorage } = require('../profiles/profile-storage');
     const profiles = ProfileStorage.loadProfilesManifest();
     const currentProfile = profiles.find((p: any) => p.id === profileId);
+    // Keep the seed stable for this profile across tabs and app restarts, while
+    // avoiding passing the raw profile ID into the page preload.
+    const fingerprintSeed = createHash('sha256')
+      .update(`privacy-browser:fingerprint:${profileId}`)
+      .digest('hex');
 
     // Attach real-time tracker blocking & permission controls
     TrackerBlocker.attachTrackerBlocking(customSession, profileId);
@@ -125,6 +131,7 @@ export class ViewManager {
         webSecurity: true,
         allowRunningInsecureContent: false,
         preload: path.join(__dirname, '../preload/page-preload.js'),
+        additionalArguments: [`--profile-fingerprint-seed=${fingerprintSeed}`],
       },
     });
 
