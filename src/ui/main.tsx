@@ -34,39 +34,39 @@ const App: React.FC = () => {
 
   return (
     <div className="app-container">
-      <header className="window-titlebar" style={{ justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#e2e4e9', fontWeight: 650 }}>
-          <img src={appLogo} alt="" width={22} height={22} />
-          <span>Multi Agent</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 110 }}>
-          {isAuthenticated ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#8de3bd', backgroundColor: 'rgba(52, 211, 153, 0.08)', padding: '3px 9px', borderRadius: 12, border: '1px solid rgba(52, 211, 153, 0.16)' }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#34d399' }} />
-              <span>Cloud Connected</span>
+      {isAuthenticated && (
+        <>
+          <header className="window-titlebar" style={{ justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#e2e4e9', fontWeight: 650 }}>
+              <img src={appLogo} alt="" width={22} height={22} />
+              <span>Multi Agent</span>
             </div>
-          ) : (
-            <span style={{ fontSize: 11, color: '#838b9b' }}>Local Workspace</span>
-          )}
-        </div>
-      </header>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 110 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#8de3bd', backgroundColor: 'rgba(52, 211, 153, 0.08)', padding: '3px 9px', borderRadius: 12, border: '1px solid rgba(52, 211, 153, 0.16)' }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#34d399' }} />
+                <span>Cloud Connected</span>
+              </div>
+            </div>
+          </header>
 
-      <main style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-        {profilesLoaded ? (
-          <ProfileSwitcher
-            profiles={profiles}
-            isAuthenticated={isAuthenticated}
-            onRefreshProfiles={refreshProfiles}
-          />
-        ) : (
-          <div role="status" style={{ height: '100%', display: 'grid', placeItems: 'center', color: '#9ba1b0' }}>
-            Loading your profiles…
-          </div>
-        )}
-      </main>
+          <main style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+            {profilesLoaded ? (
+              <ProfileSwitcher
+                profiles={profiles}
+                isAuthenticated={isAuthenticated}
+                onRefreshProfiles={refreshProfiles}
+              />
+            ) : (
+              <div role="status" style={{ height: '100%', display: 'grid', placeItems: 'center', color: '#9ba1b0' }}>
+                Loading your profiles…
+              </div>
+            )}
+          </main>
+        </>
+      )}
 
       <CloudSyncPanel
-        required={false}
+        required={!isAuthenticated}
         onProfilesUpdated={refreshProfiles}
         onAuthChanged={handleAuthChanged}
       />

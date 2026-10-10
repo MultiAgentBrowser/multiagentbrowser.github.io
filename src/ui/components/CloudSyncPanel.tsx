@@ -219,8 +219,12 @@ export const CloudSyncPanel: React.FC<CloudSyncPanelProps> = ({
                 <span className="settings-heading-icon"><Settings size={18} /></span>
                 <div>
                   <p className="settings-eyebrow">MULTI AGENT</p>
-                  <h2 id="cloud-sync-title">{required ? 'Profile cloud sync' : 'Settings'}</h2>
-                  <p className="settings-subtitle">Manage your account and profile sync</p>
+                  <h2 id="cloud-sync-title">
+                    {blockingSignIn ? 'Sign in to continue' : required ? 'Profile cloud sync' : 'Settings'}
+                  </h2>
+                  <p className="settings-subtitle">
+                    {blockingSignIn ? 'Sign in to access your browser profiles' : 'Manage your account and profile sync'}
+                  </p>
                 </div>
               </div>
               {!required && (
