@@ -13,4 +13,11 @@ describe('Profile User-Agent selection', () => {
     expect(getEffectiveUserAgent('edge', '131.0.2903.86', 'windows'))
       .toBe(getBrowserUserAgent('edge', '131.0.2903.86', 'windows'));
   });
+
+  it('uses manually entered Chrome 150+ versions in the generated User-Agent', () => {
+    expect(getBrowserUserAgent('chrome', '150.0.0.0', 'mac'))
+      .toContain('Chrome/150.0.0.0');
+    expect(getBrowserUserAgent('edge', '150.0.1.2', 'windows'))
+      .toContain('Chrome/150.0.0.0 Safari/537.36 Edg/150.0.1.2');
+  });
 });

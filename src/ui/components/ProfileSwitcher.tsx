@@ -28,7 +28,7 @@ import {
   Bookmark,
 } from 'lucide-react';
 import { Profile, ProxyConfig, SavedProxy } from '../../security/ipc-contracts';
-import { AVAILABLE_BROWSERS, getBrowserUserAgent } from '../../profiles/browser-definitions';
+import { getBrowserUserAgent } from '../../profiles/browser-definitions';
 
 interface ProfileSwitcherProps {
   profiles: Profile[];
@@ -58,7 +58,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   const [group, setGroup] = useState('Default');
   const [os, setOs] = useState<'mac' | 'windows'>('mac');
   const [browserType, setBrowserType] = useState<'chrome' | 'edge' | 'brave'>('chrome');
-  const [browserVersion, setBrowserVersion] = useState<string>('131.0.6778.86');
+  const [browserVersion, setBrowserVersion] = useState<string>('150.0.0.0');
   const [customUserAgent, setCustomUserAgent] = useState('');
   const [color, setColor] = useState('#3b82f6');
   const [notes, setNotes] = useState('');
@@ -266,7 +266,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     setGroup('Default');
     setOs('mac');
     setBrowserType('chrome');
-    setBrowserVersion('131.0.6778.86');
+    setBrowserVersion('150.0.0.0');
     setCustomUserAgent('');
     setColor('#3b82f6');
     setNotes('');
@@ -292,7 +292,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     setGroup((p as any).group || 'Default');
     setOs((p as any).os || 'mac');
     setBrowserType((p as any).browserType || 'chrome');
-    setBrowserVersion((p as any).browserVersion || '131.0.6778.86');
+    setBrowserVersion((p as any).browserVersion || '150.0.0.0');
     setCustomUserAgent(p.customUserAgent || '');
     setColor(p.color || '#3b82f6');
     setNotes((p as any).notes || '');
@@ -851,7 +851,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                 const hasProxy = p.proxy.enabled && p.proxy.host;
                 const profileOs = (p as any).os || 'mac';
                 const profileBrowser = (p as any).browserType || 'chrome';
-                const profileVersion = (p as any).browserVersion || '131.0.6778.86';
+                const profileVersion = (p as any).browserVersion || '150.0.0.0';
                 const isSelected = selectedProfileIds.includes(p.id);
 
                 return (
@@ -1354,10 +1354,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                   <select
                     value={browserType}
                     onChange={(e: any) => {
-                      const newType = e.target.value;
-                      setBrowserType(newType);
-                      const def = AVAILABLE_BROWSERS.find((b) => b.id === newType);
-                      if (def) setBrowserVersion(def.defaultVersion);
+                      setBrowserType(e.target.value);
                     }}
                     style={{
                       width: '100%',
@@ -1381,7 +1378,10 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                   <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
                     Browser Version
                   </label>
-                  <select
+                  <input
+                    type="text"
+                    maxLength={64}
+                    placeholder="150.0.0.0"
                     value={browserVersion}
                     onChange={(e) => setBrowserVersion(e.target.value)}
                     style={{
@@ -1395,18 +1395,12 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                       boxSizing: 'border-box',
                       outline: 'none',
                     }}
-                  >
-                    {AVAILABLE_BROWSERS.find((b) => b.id === browserType)?.versions.map((ver) => (
-                      <option key={ver} value={ver}>
-                        v{ver} {ver === AVAILABLE_BROWSERS.find((b) => b.id === browserType)?.defaultVersion ? '(Latest)' : ''}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
               </div>
 
               <div style={{ fontSize: 11, color: '#8b92a2', marginTop: -8 }}>
-                All profiles launch the bundled standalone Chromium browser.
+                This changes the User-Agent version reported by the selected profile; it does not install or upgrade the browser.
               </div>
 
               <div>

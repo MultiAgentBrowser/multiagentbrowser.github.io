@@ -104,7 +104,7 @@ export class ViewManager {
 
     if (currentProfile) {
       const browserType = currentProfile.browserType || 'chrome';
-      const browserVersion = currentProfile.browserVersion || '131.0.6778.86';
+      const browserVersion = currentProfile.browserVersion || '150.0.0.0';
       const os = currentProfile.os || 'mac';
       const userAgent = getEffectiveUserAgent(
         browserType,

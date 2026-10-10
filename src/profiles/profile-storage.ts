@@ -41,7 +41,7 @@ export class ProfileStorage {
           : { enabled: false, mode: 'direct', host: '', port: 8080 },
         os: (row.browser?.os as any) || 'mac',
         browserType: (row.browser?.browser_type as any) || 'chrome',
-        browserVersion: row.browser?.browser_version || '131.0.6778.86',
+        browserVersion: row.browser?.browser_version || '150.0.0.0',
         customUserAgent: row.browser?.custom_user_agent || undefined,
         notes: row.profile.notes || '',
         group: (row.profile as any).group || 'Default',
@@ -124,7 +124,7 @@ export class ProfileStorage {
         {
           profile_id: profile.id,
           browser_type: profile.browserType || 'chrome',
-          browser_version: profile.browserVersion || '131.0.6778.86',
+          browser_version: profile.browserVersion || '150.0.0.0',
           os: profile.os || 'mac',
           custom_flags: '',
           custom_user_agent: profile.customUserAgent || '',
