@@ -529,13 +529,28 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     }
   };
 
-  const handleSelectFreeProxy = (freeId: string) => {
+  const handleRefreshFreeProxies = async () => {
+    if (!window.browserAPI || !(window.browserAPI as any).listFreeProxies || loadingFreeProxies) return;
+    setLoadingFreeProxies(true);
+    try {
+      const list = await (window.browserAPI as any).listFreeProxies();
+      setFreeProxies(list || []);
+      setSelectedFreeProxyId('');
+    } catch (err: any) {
+      alert(`Could not refresh free proxies: ${err.message}`);
+    } finally {
+      setLoadingFreeProxies(false);
+    }
+  };
+
+  const handleSelectFreeProxy = async (freeId: string) => {
     setSelectedFreeProxyId(freeId);
     if (!freeId) return;
     const found = freeProxies.find((fp) => fp.id === freeId);
     if (found) {
       setProxyEnabled(true);
-      setProxyMode(found.protocol === 'http' || found.protocol === 'https' ? 'http' : 'socks5');
+      const mode = found.protocol === 'http' || found.protocol === 'https' ? 'http' : 'socks5';
+      setProxyMode(mode);
       setProxyHost(found.ip);
       setProxyPort(found.port);
       setProxyUsername('');
@@ -543,6 +558,24 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
       setChangeIpUrl('');
       setSelectedSavedProxyId('');
       setProxyTestResult(null);
+
+      // Auto test connection immediately so the user knows live status
+      if (window.browserAPI) {
+        setTestingProxy(true);
+        try {
+          const res = await window.browserAPI.testProxy({
+            enabled: true,
+            mode,
+            host: found.ip,
+            port: found.port,
+          });
+          setProxyTestResult(res);
+        } catch (e: any) {
+          setProxyTestResult({ success: false, error: e.message });
+        } finally {
+          setTestingProxy(false);
+        }
+      }
     }
   };
 
@@ -1791,10 +1824,13 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {/* Free Proxy Directory Selector */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 11, color: '#34d399', fontWeight: 600 }}>🌐 Free Public Proxy Hub:</span>
+                      <span style={{ fontSize: 11, color: '#34d399', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        🌐 Free Proxy Hub ({freeProxies.length} Live):
+                      </span>
                       <select
                         value={selectedFreeProxyId}
                         onChange={(e) => handleSelectFreeProxy(e.target.value)}
+                        disabled={loadingFreeProxies}
                         style={{
                           flex: 1,
                           padding: '6px 8px',
@@ -1803,15 +1839,46 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                           borderRadius: 6,
                           color: '#34d399',
                           fontSize: 11,
+                          outline: 'none',
                         }}
                       >
-                        <option value="">-- Select Free Public Proxy (One-Click) --</option>
+                        <option value="">
+                          {loadingFreeProxies ? 'Testing & fetching live proxies...' : '-- Select Connectable Free Proxy (One-Click) --'}
+                        </option>
                         {freeProxies.map((fp) => (
                           <option key={fp.id} value={fp.id}>
-                            [{fp.countryCode || '??'}] {fp.country} - {fp.protocol.toUpperCase()} ({fp.ip}:{fp.port}) · {fp.speed}
+                            [{fp.countryCode || '??'}] {fp.country} - {fp.protocol.toUpperCase()} ({fp.ip}:{fp.port}) · ⚡ {fp.speed}
                           </option>
                         ))}
                       </select>
+
+                      <button
+                        type="button"
+                        onClick={handleRefreshFreeProxies}
+                        disabled={loadingFreeProxies}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '6px 10px',
+                          backgroundColor: '#064e3b',
+                          border: '1px solid #059669',
+                          borderRadius: 6,
+                          color: '#34d399',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                        }}
+                        title="Scan and load brand-new connectable proxies"
+                      >
+                        {loadingFreeProxies ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <RotateCw size={12} />
+                        )}
+                        {loadingFreeProxies ? 'Testing...' : 'Find New Proxies'}
+                      </button>
                     </div>
 
                     {/* Saved Proxy Pool Selector */}
