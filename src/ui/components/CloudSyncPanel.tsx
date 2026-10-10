@@ -1,6 +1,17 @@
 import React, { FormEvent, useEffect, useState } from 'react';
 import { User, createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { Cloud, LoaderCircle, LogOut, RefreshCw, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  Check,
+  Cloud,
+  LoaderCircle,
+  LogOut,
+  RefreshCw,
+  Settings,
+  ShieldCheck,
+  UserRound,
+  X,
+} from 'lucide-react';
 import { getFirebaseServices, isFirebaseConfigured } from '../services/firebase';
 import { deleteProfileFromCloud, saveProfileToCloud, syncProfilesFromCloud } from '../services/cloud-profile-sync';
 
@@ -163,142 +174,170 @@ export const CloudSyncPanel: React.FC<CloudSyncPanelProps> = ({
   const blockingSync = required && Boolean(user);
   const showDialog = isOpen || (required && (!user || busy || Boolean(error)));
 
+  useEffect(() => {
+    if (!showDialog || required) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [required, showDialog]);
+
   return (
     <>
       {!required && (
         <button
           type="button"
+          className="settings-trigger"
+          aria-label="Open settings"
+          title="Settings"
           onClick={() => setIsOpen(true)}
-          style={{ position: 'fixed', top: 12, right: 20, zIndex: 50, display: 'inline-flex', alignItems: 'center', gap: 6, border: 0, background: '#191b24', color: '#aab4c5', cursor: 'pointer', fontSize: 11, padding: 8, borderRadius: 6 }}
         >
-          <Cloud size={14} />
-          {user ? user.email : 'Cloud sync'}
+          <Settings size={14} />
+          Settings
         </button>
       )}
       {showDialog && (
         <div
-          style={{ position: 'fixed', inset: 0, zIndex: 2000, background: blockingSignIn || blockingSync ? '#121316' : 'rgba(0,0,0,.72)', display: 'grid', placeItems: 'center' }}
+          className={`settings-overlay${required ? ' settings-overlay--blocking' : ''}`}
           onClick={() => {
             if (!required) setIsOpen(false);
           }}
         >
           <section
+            className="settings-dialog"
             role="dialog"
             aria-modal="true"
             aria-labelledby="cloud-sync-title"
-            style={{ width: 420, maxWidth: '92vw', padding: 24, borderRadius: 14, background: '#191b24', border: '1px solid #34394b', boxShadow: '0 24px 70px #000a' }}
             onClick={(event) => event.stopPropagation()}
           >
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h2 id="cloud-sync-title" style={{ margin: 0, fontSize: 18, color: '#fff' }}>Profile cloud sync</h2>
+            <header className="settings-header">
+              <div className="settings-heading">
+                <span className="settings-heading-icon"><Settings size={18} /></span>
+                <div>
+                  <p className="settings-eyebrow">MULTI AGENT</p>
+                  <h2 id="cloud-sync-title">{required ? 'Profile cloud sync' : 'Settings'}</h2>
+                  <p className="settings-subtitle">Manage your account and profile sync</p>
+                </div>
+              </div>
               {!required && (
-                <button type="button" aria-label="Close" onClick={() => setIsOpen(false)} style={{ border: 0, background: 'transparent', color: '#aab4c5', cursor: 'pointer' }}>
+                <button type="button" className="settings-close" aria-label="Close settings" onClick={() => setIsOpen(false)}>
                   <X size={18} />
                 </button>
               )}
             </header>
-            <p style={{ color: '#aab4c5', fontSize: 12, lineHeight: 1.6, margin: '0 0 16px' }}>
-              Syncs persistent profiles and settings. Proxy usernames/passwords and Chrome browsing data are never uploaded.
-            </p>
-            {!isFirebaseConfigured ? (
-              <p role="alert" style={{ color: '#fca5a5', fontSize: 12 }}>
-                Firebase is not configured. Add the Web app settings to .env.local and rebuild.
-              </p>
-            ) : blockingSync ? (
-              <div>
-                <p role="status" style={{ color: '#e2e4e9', fontSize: 13, margin: '0 0 16px' }}>
-                  {busy ? `Loading cloud profiles for ${user?.email}…` : 'Cloud sync must finish before profiles can be used.'}
-                </p>
-                {!busy && (
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <button type="button" onClick={handleSync} style={primaryButtonStyle}>
-                      <RefreshCw size={15} /> Retry sync
-                    </button>
-                    <button type="button" onClick={handleSignOut} style={secondaryButtonStyle}>
-                      <LogOut size={15} /> Sign out
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : user ? (
-              <div>
-                <p style={{ color: '#e2e4e9', fontSize: 13, margin: '0 0 16px' }}>{user.email}</p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <button type="button" disabled={busy} onClick={handleSync} style={primaryButtonStyle}>
-                    {busy ? <LoaderCircle size={15} className="spin" /> : <RefreshCw size={15} />}
-                    Sync now
-                  </button>
-                  <button type="button" disabled={busy} onClick={handleSignOut} style={secondaryButtonStyle}>
-                    <LogOut size={15} /> Sign out
-                  </button>
-                  <span role="status" style={{ color: '#86efac', fontSize: 11 }}>{status}</span>
+            <div className="settings-layout">
+              <nav className="settings-nav" aria-label="Settings sections">
+                <p className="settings-nav-label">PREFERENCES</p>
+                <div className="settings-nav-item" aria-current="page">
+                  <UserRound size={16} />
+                  <span>Account &amp; sync</span>
                 </div>
+              </nav>
+              <div className="settings-content">
+                <div className="settings-section-heading">
+                  <div>
+                    <h3>Account &amp; sync</h3>
+                    <p>Sign-in and cloud profile synchronization</p>
+                  </div>
+                  <Cloud size={19} />
+                </div>
+                {!isFirebaseConfigured ? (
+                  <div className="settings-notice settings-notice--error" role="alert">
+                    <AlertTriangle size={17} />
+                    <p>Cloud sync is not configured. Add the Firebase web app settings to <code>.env.local</code> and rebuild.</p>
+                  </div>
+                ) : blockingSync ? (
+                  <div className="settings-account-card">
+                    <div className="settings-account-identity">
+                      <span className="settings-avatar"><UserRound size={20} /></span>
+                      <div className="settings-account-details">
+                        <span className="settings-field-label">SIGNED-IN ACCOUNT</span>
+                        <strong>{user?.email || 'Your account'}</strong>
+                      </div>
+                    </div>
+                    <div className="settings-sync-status" role="status">
+                      {busy ? <LoaderCircle size={16} className="spin" /> : <AlertTriangle size={16} />}
+                      <span>{busy ? 'Syncing your profiles…' : 'Cloud sync needs attention'}</span>
+                    </div>
+                    {!busy && (
+                      <div className="settings-actions">
+                        <button type="button" className="settings-button settings-button--primary" onClick={handleSync}>
+                          <RefreshCw size={15} /> Retry sync
+                        </button>
+                        <button type="button" className="settings-button settings-button--danger" onClick={handleSignOut}>
+                          <LogOut size={15} /> Log out
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : user ? (
+                  <div className="settings-account-card">
+                    <div className="settings-account-identity">
+                      <span className="settings-avatar"><UserRound size={20} /></span>
+                      <div className="settings-account-details">
+                        <span className="settings-field-label">SIGNED-IN ACCOUNT</span>
+                        <strong>{user.email || 'Account email unavailable'}</strong>
+                      </div>
+                      <span className="settings-badge"><span /> Connected</span>
+                    </div>
+                    <div className="settings-sync-status" role="status">
+                      {busy ? <LoaderCircle size={16} className="spin" /> : <Check size={16} />}
+                      <span>{busy ? 'Syncing profile changes…' : status || 'Cloud sync is ready'}</span>
+                    </div>
+                    <div className="settings-actions">
+                      <button type="button" className="settings-button settings-button--primary" disabled={busy} onClick={handleSync}>
+                        {busy ? <LoaderCircle size={15} className="spin" /> : <RefreshCw size={15} />}
+                        Sync now
+                      </button>
+                      <button type="button" className="settings-button settings-button--danger" disabled={busy} onClick={handleSignOut}>
+                        <LogOut size={15} /> Log out
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <form onSubmit={handleSubmit} className="settings-auth-form">
+                    <label htmlFor="settings-email">Email address</label>
+                    <input
+                      id="settings-email"
+                      autoComplete="email"
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      placeholder="name@example.com"
+                    />
+                    <label htmlFor="settings-password">Password</label>
+                    <input
+                      id="settings-password"
+                      autoComplete={createAccount ? 'new-password' : 'current-password'}
+                      type="password"
+                      minLength={6}
+                      required
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      placeholder="Enter your password"
+                    />
+                    <button type="submit" disabled={busy} className="settings-button settings-button--primary settings-submit">
+                      {busy && <LoaderCircle size={15} className="spin" />}
+                      {createAccount ? 'Create account' : 'Sign in'}
+                    </button>
+                    <button type="button" className="settings-link-button" onClick={() => setCreateAccount((value) => !value)}>
+                      {createAccount ? 'Already have an account? Sign in' : 'Need an account? Create one'}
+                    </button>
+                  </form>
+                )}
+                <div className="settings-privacy-note">
+                  <ShieldCheck size={17} />
+                  <p><strong>Your browsing data stays private.</strong> Profiles sync to your account. Proxy passwords and Chrome browsing data are never uploaded.</p>
+                </div>
+                {error && <div className="settings-notice settings-notice--error" role="alert"><AlertTriangle size={17} /><p>{error}</p></div>}
               </div>
-            ) : (
-              <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 10 }}>
-                <input
-                  aria-label="Email"
-                  autoComplete="email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="Email"
-                  style={inputStyle}
-                />
-                <input
-                  aria-label="Password"
-                  autoComplete={createAccount ? 'new-password' : 'current-password'}
-                  type="password"
-                  minLength={6}
-                  required
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Password"
-                  style={inputStyle}
-                />
-                <button type="submit" disabled={busy} style={primaryButtonStyle}>
-                  {busy && <LoaderCircle size={15} className="spin" />}
-                  {createAccount ? 'Create account' : 'Sign in'}
-                </button>
-                <button type="button" onClick={() => setCreateAccount((value) => !value)} style={{ border: 0, background: 'transparent', color: '#93b4ff', cursor: 'pointer', fontSize: 12, justifySelf: 'start' }}>
-                  {createAccount ? 'Already have an account? Sign in' : 'Need an account? Create one'}
-                </button>
-              </form>
-            )}
-            {error && <p role="alert" style={{ color: '#fca5a5', fontSize: 12, margin: '14px 0 0', overflowWrap: 'anywhere' }}>{error}</p>}
+            </div>
+            {!required && <footer className="settings-footer">Changes to profiles sync automatically when cloud sync is connected.</footer>}
           </section>
         </div>
       )}
     </>
   );
-};
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '10px 12px',
-  border: '1px solid #373c4f',
-  borderRadius: 7,
-  background: '#101116',
-  color: '#fff',
-  fontSize: 13,
-};
-
-const primaryButtonStyle: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 7,
-  padding: '9px 12px',
-  border: 0,
-  borderRadius: 7,
-  background: '#3b82f6',
-  color: '#fff',
-  cursor: 'pointer',
-  fontSize: 12,
-};
-
-const secondaryButtonStyle: React.CSSProperties = {
-  ...primaryButtonStyle,
-  background: '#292d3a',
 };
