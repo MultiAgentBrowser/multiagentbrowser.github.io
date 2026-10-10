@@ -55,6 +55,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   // Creation & Editing modal state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
+  const [editorTab, setEditorTab] = useState<'general' | 'proxy' | 'privacy'>('general');
 
   // Form fields
   const [name, setName] = useState('');
@@ -484,12 +485,14 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     setSelectedSavedProxyId('');
     setProxyTestResult(null);
     setRemoteDebuggingPort('');
+    setEditorTab('general');
     setIsCreateOpen(true);
   };
 
   const handleOpenEdit = (p: Profile) => {
     if (!isAuthenticated) return;
     setEditingProfileId(p.id);
+    setEditorTab('general');
     setName(p.name);
     setGroup((p as any).group || 'Default');
     setOs((p as any).os || 'mac');
@@ -1535,705 +1538,1171 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
 
       {/* The profile editor occupies the app page instead of opening as a dialog. */}
       {isCreateOpen && (
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundColor: '#16181f',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
         <div
           style={{
-            width: '100%',
-            height: '100%',
-            minHeight: 0,
-            backgroundColor: '#1a1c24',
-            overflow: 'hidden',
+            position: 'absolute',
+            inset: 0,
+            backgroundColor: '#0d0f17',
             display: 'flex',
             flexDirection: 'column',
+            zIndex: 50,
           }}
         >
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              minHeight: 0,
+              backgroundColor: '#12141e',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
             {/* Editor Header */}
             <div
               style={{
-                padding: '16px 22px',
-                borderBottom: '1px solid #282c3d',
+                padding: '16px 28px',
+                borderBottom: '1px solid #232738',
+                backgroundColor: '#151824',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
               }}
             >
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: '#ffffff', margin: 0 }}>
-                {editingProfileId ? 'Edit Profile Configuration' : 'Create New Profile'}
-              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    backgroundColor: editingProfileId ? 'rgba(59, 130, 246, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                    border: `1px solid ${editingProfileId ? '#3b82f640' : '#10b98140'}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: editingProfileId ? '#60a5fa' : '#34d399',
+                  }}
+                >
+                  {editingProfileId ? <Edit2 size={18} /> : <Plus size={18} />}
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: '#ffffff', margin: 0 }}>
+                    {editingProfileId ? 'Edit Browser Profile' : 'Create New Profile'}
+                  </h3>
+                  <p style={{ margin: 0, fontSize: 12, color: '#82899d', marginTop: 2 }}>
+                    {editingProfileId ? `Customizing configuration for "${name || 'Unnamed'}"` : 'Configure isolated fingerprint, network proxy, and automation'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Navigation Tabs Pill Bar */}
+              <div
+                style={{
+                  display: 'flex',
+                  backgroundColor: '#0d0e15',
+                  padding: 4,
+                  borderRadius: 10,
+                  border: '1px solid #232738',
+                  gap: 4,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setEditorTab('general')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '7px 14px',
+                    borderRadius: 7,
+                    border: 'none',
+                    fontSize: 12,
+                    fontWeight: editorTab === 'general' ? 600 : 500,
+                    cursor: 'pointer',
+                    backgroundColor: editorTab === 'general' ? '#25293d' : 'transparent',
+                    color: editorTab === 'general' ? '#ffffff' : '#8890a5',
+                    boxShadow: editorTab === 'general' ? '0 2px 8px rgba(0,0,0,0.3)' : 'none',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <User size={14} />
+                  General
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setEditorTab('proxy')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '7px 14px',
+                    borderRadius: 7,
+                    border: 'none',
+                    fontSize: 12,
+                    fontWeight: editorTab === 'proxy' ? 600 : 500,
+                    cursor: 'pointer',
+                    backgroundColor: editorTab === 'proxy' ? '#25293d' : 'transparent',
+                    color: editorTab === 'proxy' ? '#ffffff' : '#8890a5',
+                    boxShadow: editorTab === 'proxy' ? '0 2px 8px rgba(0,0,0,0.3)' : 'none',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <Globe size={14} />
+                  Proxy & Network
+                  {proxyEnabled && (
+                    <span
+                      style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: '50%',
+                        backgroundColor: '#10b981',
+                        display: 'inline-block',
+                      }}
+                    />
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setEditorTab('privacy')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '7px 14px',
+                    borderRadius: 7,
+                    border: 'none',
+                    fontSize: 12,
+                    fontWeight: editorTab === 'privacy' ? 600 : 500,
+                    cursor: 'pointer',
+                    backgroundColor: editorTab === 'privacy' ? '#25293d' : 'transparent',
+                    color: editorTab === 'privacy' ? '#ffffff' : '#8890a5',
+                    boxShadow: editorTab === 'privacy' ? '0 2px 8px rgba(0,0,0,0.3)' : 'none',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <Shield size={14} />
+                  Privacy & Automation
+                </button>
+              </div>
+
               <button
                 disabled={!isAuthenticated}
                 onClick={() => setIsCreateOpen(false)}
-                style={{ background: 'none', border: 'none', color: '#9ba1b0', cursor: 'pointer' }}
+                style={{
+                  background: 'none',
+                  border: '1px solid #282c3f',
+                  borderRadius: 8,
+                  padding: 6,
+                  color: '#9ba1b0',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                title="Close Editor"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
-            {/* Editor Form */}
-            <div style={{ flex: 1, minHeight: 0, padding: '20px 22px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Profile Name, Folder & OS */}
-              <div style={{ display: 'flex', gap: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
-                    Profile Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Amazon Store 1, Client Alpha"
-                    style={{
-                      width: '100%',
-                      padding: '9px 12px',
-                      backgroundColor: '#12131b',
-                      border: '1px solid #2f3448',
-                      borderRadius: 8,
-                      color: '#ffffff',
-                      fontSize: 13,
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                </div>
+            {/* Editor Body Content Area */}
+            <div style={{ flex: 1, minHeight: 0, padding: '24px 28px', overflowY: 'auto' }}>
+              <div style={{ maxWidth: 880, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-                <div style={{ width: 140 }}>
-                  <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
-                    Folder / Group
-                  </label>
-                  <input
-                    type="text"
-                    value={group}
-                    onChange={(e) => setGroup(e.target.value)}
-                    placeholder="Default"
-                    style={{
-                      width: '100%',
-                      padding: '9px 10px',
-                      backgroundColor: '#12131b',
-                      border: '1px solid #2f3448',
-                      borderRadius: 8,
-                      color: '#ffffff',
-                      fontSize: 13,
-                      boxSizing: 'border-box',
-                      outline: 'none',
-                    }}
-                  />
-                </div>
+                {/* TAB 1: GENERAL SETTINGS */}
+                {editorTab === 'general' && (
+                  <>
+                    {/* Basic Info Card */}
+                    <div
+                      style={{
+                        padding: 18,
+                        backgroundColor: '#171a26',
+                        border: '1px solid #282d40',
+                        borderRadius: 12,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 16,
+                      }}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <User size={15} color="#3b82f6" />
+                        Basic Information
+                      </div>
 
-                <div style={{ width: 130 }}>
-                  <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
-                    Emulated OS
-                  </label>
-                  <select
-                    value={os}
-                    onChange={(e: any) => setOs(e.target.value)}
+                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14 }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#9ba1b0', marginBottom: 6 }}>
+                            Profile Name *
+                          </label>
+                          <input
+                            type="text"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="e.g. Amazon Store 1, Client Alpha"
+                            style={{
+                              width: '100%',
+                              padding: '10px 14px',
+                              backgroundColor: '#0e1017',
+                              border: '1px solid #2c3245',
+                              borderRadius: 8,
+                              color: '#ffffff',
+                              fontSize: 13,
+                              outline: 'none',
+                              boxSizing: 'border-box',
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#9ba1b0', marginBottom: 6 }}>
+                            Folder / Group
+                          </label>
+                          <input
+                            type="text"
+                            value={group}
+                            onChange={(e) => setGroup(e.target.value)}
+                            placeholder="Default"
+                            style={{
+                              width: '100%',
+                              padding: '10px 14px',
+                              backgroundColor: '#0e1017',
+                              border: '1px solid #2c3245',
+                              borderRadius: 8,
+                              color: '#ffffff',
+                              fontSize: 13,
+                              boxSizing: 'border-box',
+                              outline: 'none',
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Color Tag Swatch Picker */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#9ba1b0', marginBottom: 8 }}>
+                          Profile Color Tag
+                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          {[
+                            '#3b82f6', // blue
+                            '#10b981', // emerald
+                            '#8b5cf6', // purple
+                            '#f59e0b', // amber
+                            '#ec4899', // pink
+                            '#06b6d4', // cyan
+                            '#ef4444', // red
+                            '#64748b', // slate
+                          ].map((c) => (
+                            <button
+                              key={c}
+                              type="button"
+                              onClick={() => setColor(c)}
+                              style={{
+                                width: 26,
+                                height: 26,
+                                borderRadius: '50%',
+                                backgroundColor: c,
+                                border: color === c ? '2px solid #ffffff' : '2px solid transparent',
+                                outline: color === c ? `2px solid ${c}` : 'none',
+                                cursor: 'pointer',
+                                transition: 'transform 0.1s ease',
+                                transform: color === c ? 'scale(1.15)' : 'scale(1)',
+                              }}
+                            />
+                          ))}
+                          <span style={{ fontSize: 11, color: '#64748b', marginLeft: 8 }}>
+                            Used for badge identifiers
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Environment & OS Platform Card */}
+                    <div
+                      style={{
+                        padding: 18,
+                        backgroundColor: '#171a26',
+                        border: '1px solid #282d40',
+                        borderRadius: 12,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 16,
+                      }}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Monitor size={15} color="#10b981" />
+                        Operating System Simulation
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                        <div
+                          onClick={() => setOs('mac')}
+                          style={{
+                            padding: '14px 16px',
+                            borderRadius: 10,
+                            backgroundColor: os === 'mac' ? '#1c2236' : '#0e1017',
+                            border: `1.5px solid ${os === 'mac' ? '#3b82f6' : '#282d40'}`,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 12,
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 38,
+                              height: 38,
+                              borderRadius: 8,
+                              backgroundColor: os === 'mac' ? '#3b82f625' : '#1e2230',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: os === 'mac' ? '#60a5fa' : '#94a3b8',
+                            }}
+                          >
+                            <Apple size={20} />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: '#ffffff' }}>macOS</div>
+                            <div style={{ fontSize: 11, color: '#82899d' }}>Intel & Apple Silicon Core</div>
+                          </div>
+                        </div>
+
+                        <div
+                          onClick={() => setOs('windows')}
+                          style={{
+                            padding: '14px 16px',
+                            borderRadius: 10,
+                            backgroundColor: os === 'windows' ? '#1c2236' : '#0e1017',
+                            border: `1.5px solid ${os === 'windows' ? '#3b82f6' : '#282d40'}`,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 12,
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 38,
+                              height: 38,
+                              borderRadius: 8,
+                              backgroundColor: os === 'windows' ? '#3b82f625' : '#1e2230',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: os === 'windows' ? '#60a5fa' : '#94a3b8',
+                            }}
+                          >
+                            <Monitor size={20} />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: '#ffffff' }}>Windows</div>
+                            <div style={{ fontSize: 11, color: '#82899d' }}>Windows 10 / 11 Native Architecture</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Browser Engine & Version Card */}
+                    <div
+                      style={{
+                        padding: 18,
+                        backgroundColor: '#171a26',
+                        border: '1px solid #282d40',
+                        borderRadius: 12,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 16,
+                      }}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Globe size={15} color="#f59e0b" />
+                        Browser Engine & Architecture
+                      </div>
+
+                      {/* Engine Selector Cards */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                        {[
+                          { id: 'chrome', label: 'Google Chrome', tag: 'Standard' },
+                          { id: 'brave', label: 'Brave Browser', tag: 'Shields' },
+                          { id: 'edge', label: 'Microsoft Edge', tag: 'Enterprise' },
+                        ].map((b) => (
+                          <div
+                            key={b.id}
+                            onClick={() => setBrowserType(b.id as any)}
+                            style={{
+                              padding: '12px 14px',
+                              borderRadius: 8,
+                              backgroundColor: browserType === b.id ? '#1e2338' : '#0e1017',
+                              border: `1.5px solid ${browserType === b.id ? '#f59e0b' : '#282d40'}`,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 4,
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>{b.label}</span>
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  padding: '2px 6px',
+                                  borderRadius: 4,
+                                  backgroundColor: browserType === b.id ? 'rgba(245, 158, 11, 0.2)' : '#232738',
+                                  color: browserType === b.id ? '#fcd34d' : '#8890a5',
+                                }}
+                              >
+                                {b.tag}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: 11, color: '#82899d' }}>Chromium runtime base</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Browser Version & User-Agent */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 14, alignItems: 'flex-start' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#9ba1b0', marginBottom: 6 }}>
+                            Browser Version
+                          </label>
+                          <input
+                            type="text"
+                            maxLength={64}
+                            placeholder="150.0.0.0"
+                            value={browserVersion}
+                            onChange={(e) => setBrowserVersion(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '10px 14px',
+                              backgroundColor: '#0e1017',
+                              border: '1px solid #2c3245',
+                              borderRadius: 8,
+                              color: '#ffffff',
+                              fontSize: 13,
+                              boxSizing: 'border-box',
+                              outline: 'none',
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label htmlFor="custom-user-agent" style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#9ba1b0', marginBottom: 6 }}>
+                            Custom User-Agent (optional)
+                          </label>
+                          <input
+                            id="custom-user-agent"
+                            type="text"
+                            maxLength={512}
+                            value={customUserAgent}
+                            onChange={(event) => setCustomUserAgent(event.target.value)}
+                            placeholder="Leave blank to use the selected browser & version"
+                            style={{
+                              width: '100%',
+                              padding: '10px 14px',
+                              backgroundColor: '#0e1017',
+                              border: '1px solid #2c3245',
+                              borderRadius: 8,
+                              color: '#ffffff',
+                              fontSize: 12,
+                              boxSizing: 'border-box',
+                              outline: 'none',
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* User-Agent Preview Box */}
+                      <div
+                        style={{
+                          backgroundColor: '#0e1017',
+                          padding: '12px 16px',
+                          borderRadius: 8,
+                          border: '1px solid #24293c',
+                          fontSize: 11,
+                          lineHeight: '1.5',
+                        }}
+                      >
+                        <div style={{ color: '#60a5fa', fontWeight: 600, marginBottom: 4 }}>
+                          ⚡ Effective User-Agent String:
+                        </div>
+                        <div style={{ color: '#cbd5e1', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                          {customUserAgent.trim() || getBrowserUserAgent(browserType, browserVersion, os)}
+                        </div>
+                      </div>
+
+                      {/* Notes / Tags */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#9ba1b0', marginBottom: 6 }}>
+                          Notes / Description
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          placeholder="Optional notes, account recovery emails, credentials, or target marketplace..."
+                          style={{
+                            width: '100%',
+                            padding: '10px 14px',
+                            backgroundColor: '#0e1017',
+                            border: '1px solid #2c3245',
+                            borderRadius: 8,
+                            color: '#ffffff',
+                            fontSize: 12,
+                            outline: 'none',
+                            boxSizing: 'border-box',
+                            resize: 'none',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* TAB 2: PROXY & NETWORK */}
+                {editorTab === 'proxy' && (
+                  <div
                     style={{
-                      width: '100%',
-                      padding: '9px 10px',
-                      backgroundColor: '#12131b',
-                      border: '1px solid #2f3448',
-                      borderRadius: 8,
-                      color: '#ffffff',
-                      fontSize: 13,
-                      boxSizing: 'border-box',
+                      padding: 20,
+                      backgroundColor: '#171a26',
+                      border: '1px solid #282d40',
+                      borderRadius: 12,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 18,
                     }}
                   >
-                    <option value="mac">macOS</option>
-                    <option value="windows">Windows</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Browser Engine & Version Selection */}
-              <div style={{ display: 'flex', gap: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
-                    Browser Engine
-                  </label>
-                  <select
-                    value={browserType}
-                    onChange={(e: any) => {
-                      setBrowserType(e.target.value);
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '9px 10px',
-                      backgroundColor: '#12131b',
-                      border: '1px solid #2f3448',
-                      borderRadius: 8,
-                      color: '#ffffff',
-                      fontSize: 13,
-                      boxSizing: 'border-box',
-                      outline: 'none',
-                    }}
-                  >
-                    <option value="chrome">Google Chrome</option>
-                    <option value="edge">Microsoft Edge</option>
-                    <option value="brave">Brave Browser</option>
-                  </select>
-                </div>
-
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
-                    Browser Version
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={64}
-                    placeholder="150.0.0.0"
-                    value={browserVersion}
-                    onChange={(e) => setBrowserVersion(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '9px 10px',
-                      backgroundColor: '#12131b',
-                      border: '1px solid #2f3448',
-                      borderRadius: 8,
-                      color: '#ffffff',
-                      fontSize: 13,
-                      boxSizing: 'border-box',
-                      outline: 'none',
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ fontSize: 11, color: '#8b92a2', marginTop: -8 }}>
-                This changes the User-Agent version reported by the selected profile; it does not install or upgrade the browser.
-              </div>
-
-              <div>
-                <label htmlFor="custom-user-agent" style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
-                  Custom User-Agent (optional)
-                </label>
-                <input
-                  id="custom-user-agent"
-                  type="text"
-                  maxLength={512}
-                  value={customUserAgent}
-                  onChange={(event) => setCustomUserAgent(event.target.value)}
-                  placeholder="Leave blank to use the selected browser and version"
-                  style={{
-                    width: '100%',
-                    padding: '9px 10px',
-                    backgroundColor: '#12131b',
-                    border: '1px solid #2f3448',
-                    borderRadius: 8,
-                    color: '#ffffff',
-                    fontSize: 13,
-                    boxSizing: 'border-box',
-                    outline: 'none',
-                  }}
-                />
-              </div>
-
-              {/* User-Agent Preview */}
-              <div
-                style={{
-                  backgroundColor: '#111218',
-                  padding: '9px 12px',
-                  borderRadius: 6,
-                  border: '1px solid #25283a',
-                  fontSize: 11,
-                  color: '#9ba1b0',
-                  lineHeight: '1.4',
-                  wordBreak: 'break-all',
-                }}
-              >
-                <span style={{ color: '#60a5fa', fontWeight: 600 }}>Effective User-Agent: </span>
-                <span style={{ color: '#d1d5db', fontFamily: 'monospace' }}>
-                  {customUserAgent.trim() || getBrowserUserAgent(browserType, browserVersion, os)}
-                </span>
-              </div>
-
-              {/* Notes */}
-              <div>
-                <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
-                  Notes / Tags
-                </label>
-                <input
-                  type="text"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Optional description or account email..."
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    backgroundColor: '#12131b',
-                    border: '1px solid #2f3448',
-                    borderRadius: 8,
-                    color: '#ffffff',
-                    fontSize: 12,
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-
-              {/* Proxy Section */}
-              <div
-                style={{
-                  padding: 14,
-                  backgroundColor: '#14161f',
-                  border: '1px solid #292d3e',
-                  borderRadius: 10,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: '#ffffff', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={proxyEnabled}
-                      onChange={(e) => setProxyEnabled(e.target.checked)}
-                    />
-                    Enable Dedicated Proxy
-                  </label>
-
-                  {proxyEnabled && (
-                    <button
-                      type="button"
-                      onClick={handleTestProxy}
-                      disabled={testingProxy || !proxyHost.trim()}
+                    {/* Enable Proxy Master Toggle */}
+                    <div
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 6,
-                        padding: '4px 10px',
-                        backgroundColor: '#262a3c',
-                        border: '1px solid #383e58',
-                        borderRadius: 6,
-                        color: '#38bdf8',
-                        fontSize: 11,
-                        cursor: 'pointer',
+                        justifyContent: 'space-between',
+                        paddingBottom: 16,
+                        borderBottom: '1px solid #252a3d',
                       }}
                     >
-                      {testingProxy ? <Loader2 size={12} className="animate-spin" /> : <Wifi size={12} />}
-                      Check Proxy
-                    </button>
-                  )}
-                </div>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#ffffff' }}>Dedicated Proxy Connection</div>
+                        <div style={{ fontSize: 12, color: '#82899d', marginTop: 2 }}>
+                          Route all traffic through SOCKS5, HTTP, or a Live Free Hub proxy
+                        </div>
+                      </div>
 
-                {proxyEnabled && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {/* Free Proxy Directory Selector */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 11, color: '#34d399', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                        🌐 Free Proxy Hub ({freeProxies.length} Live):
-                      </span>
-                      <select
-                        value={selectedFreeProxyId}
-                        onChange={(e) => handleSelectFreeProxy(e.target.value)}
-                        disabled={loadingFreeProxies}
-                        style={{
-                          flex: 1,
-                          padding: '6px 8px',
-                          backgroundColor: '#0f1017',
-                          border: '1px solid #10b981',
-                          borderRadius: 6,
-                          color: '#34d399',
-                          fontSize: 11,
-                          outline: 'none',
-                        }}
-                      >
-                        <option value="">
-                          {loadingFreeProxies ? 'Testing & fetching live proxies...' : '-- Select Connectable Free Proxy (One-Click) --'}
-                        </option>
-                        {freeProxies.map((fp) => {
-                          const locationLabel = fp.city ? `${fp.country} (${fp.city})` : fp.country;
-                          return (
-                            <option key={fp.id} value={fp.id}>
-                              [{fp.countryCode || '??'}] {locationLabel} - {fp.protocol.toUpperCase()} ({fp.ip}:{fp.port}) · ⚡ {fp.speed}
-                            </option>
-                          );
-                        })}
-                      </select>
-
-                      <button
-                        type="button"
-                        onClick={handleRefreshFreeProxies}
-                        disabled={loadingFreeProxies}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          padding: '6px 10px',
-                          backgroundColor: '#064e3b',
-                          border: '1px solid #059669',
-                          borderRadius: 6,
-                          color: '#34d399',
-                          fontSize: 11,
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap',
-                        }}
-                        title="Scan and load brand-new connectable proxies"
-                      >
-                        {loadingFreeProxies ? (
-                          <Loader2 size={12} className="animate-spin" />
-                        ) : (
-                          <RotateCw size={12} />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        {proxyEnabled && (
+                          <button
+                            type="button"
+                            onClick={handleTestProxy}
+                            disabled={testingProxy || !proxyHost.trim()}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              padding: '6px 12px',
+                              backgroundColor: '#1e293b',
+                              border: '1px solid #334155',
+                              borderRadius: 7,
+                              color: '#38bdf8',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {testingProxy ? <Loader2 size={13} className="animate-spin" /> : <Wifi size={13} />}
+                            {testingProxy ? 'Checking...' : 'Test Connection'}
+                          </button>
                         )}
-                        {loadingFreeProxies ? 'Testing...' : 'Find New Proxies'}
-                      </button>
+
+                        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: 8 }}>
+                          <input
+                            type="checkbox"
+                            checked={proxyEnabled}
+                            onChange={(e) => setProxyEnabled(e.target.checked)}
+                            style={{ width: 18, height: 18, accentColor: '#3b82f6', cursor: 'pointer' }}
+                          />
+                          <span style={{ fontSize: 13, fontWeight: 600, color: proxyEnabled ? '#60a5fa' : '#94a3b8' }}>
+                            {proxyEnabled ? 'Proxy Enabled' : 'Direct Connection'}
+                          </span>
+                        </label>
+                      </div>
                     </div>
 
-                    {/* Saved Proxy Pool Selector */}
-                    {savedProxies.length > 0 && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 11, color: '#9ba1b0' }}>Use Proxy from Pool:</span>
-                        <select
-                          value={selectedSavedProxyId}
-                          onChange={(e) => handleSelectSavedProxy(e.target.value)}
+                    {proxyEnabled && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        {/* 1. Free Proxy Hub Panel */}
+                        <div
                           style={{
-                            flex: 1,
-                            padding: '6px 8px',
-                            backgroundColor: '#0f1017',
-                            border: '1px solid #2f3448',
-                            borderRadius: 6,
-                            color: '#38bdf8',
-                            fontSize: 11,
+                            padding: 14,
+                            borderRadius: 10,
+                            backgroundColor: 'rgba(16, 185, 129, 0.06)',
+                            border: '1px solid rgba(16, 185, 129, 0.25)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 10,
                           }}
                         >
-                          <option value="">-- Choose saved proxy --</option>
-                          {savedProxies.map((sp) => (
-                            <option key={sp.id} value={sp.id}>
-                              {sp.name} ({sp.mode.toUpperCase()} - {sp.host}:{sp.port})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
-                    <div style={{ display: 'flex', gap: 10 }}>
-                      <select
-                        value={proxyMode}
-                        onChange={(e: any) => setProxyMode(e.target.value)}
-                        style={{
-                          width: 110,
-                          padding: '8px 10px',
-                          backgroundColor: '#0f1017',
-                          border: '1px solid #2f3448',
-                          borderRadius: 6,
-                          color: '#ffffff',
-                          fontSize: 12,
-                        }}
-                      >
-                        <option value="socks5">SOCKS5</option>
-                        <option value="http">HTTP</option>
-                        <option value="https">HTTPS</option>
-                      </select>
-
-                      <input
-                        type="text"
-                        placeholder="Host (IP or domain)"
-                        value={proxyHost}
-                        onChange={(e) => setProxyHost(e.target.value)}
-                        style={{
-                          flex: 1,
-                          padding: '8px 10px',
-                          backgroundColor: '#0f1017',
-                          border: '1px solid #2f3448',
-                          borderRadius: 6,
-                          color: '#ffffff',
-                          fontSize: 12,
-                          outline: 'none',
-                        }}
-                      />
-
-                      <input
-                        type="number"
-                        placeholder="Port"
-                        value={proxyPort}
-                        onChange={(e) => setProxyPort(Number(e.target.value))}
-                        style={{
-                          width: 80,
-                          padding: '8px 10px',
-                          backgroundColor: '#0f1017',
-                          border: '1px solid #2f3448',
-                          borderRadius: 6,
-                          color: '#ffffff',
-                          fontSize: 12,
-                          outline: 'none',
-                        }}
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', gap: 10 }}>
-                      <input
-                        type="text"
-                        placeholder="Username (optional)"
-                        value={proxyUsername}
-                        onChange={(e) => setProxyUsername(e.target.value)}
-                        style={{
-                          flex: 1,
-                          padding: '7px 10px',
-                          backgroundColor: '#0f1017',
-                          border: '1px solid #2f3448',
-                          borderRadius: 6,
-                          color: '#ffffff',
-                          fontSize: 12,
-                          outline: 'none',
-                        }}
-                      />
-                      <input
-                        type="password"
-                        placeholder="Password (optional)"
-                        value={proxyPassword}
-                        onChange={(e) => setProxyPassword(e.target.value)}
-                        style={{
-                          flex: 1,
-                          padding: '7px 10px',
-                          backgroundColor: '#0f1017',
-                          border: '1px solid #2f3448',
-                          borderRadius: 6,
-                          color: '#ffffff',
-                          fontSize: 12,
-                          outline: 'none',
-                        }}
-                      />
-                    </div>
-
-                    {/* Change IP / Rotation URL */}
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                      <input
-                        type="text"
-                        placeholder="Rotation / Change IP URL (e.g. http://proxy-provider.com/rotate?key=xxx)"
-                        value={changeIpUrl}
-                        onChange={(e) => setChangeIpUrl(e.target.value)}
-                        style={{
-                          flex: 1,
-                          padding: '7px 10px',
-                          backgroundColor: '#0f1017',
-                          border: '1px solid #2f3448',
-                          borderRadius: 6,
-                          color: '#ffffff',
-                          fontSize: 11,
-                          outline: 'none',
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={handleSaveCurrentProxyToPool}
-                        disabled={!proxyHost.trim()}
-                        style={{
-                          padding: '7px 12px',
-                          backgroundColor: '#1e2433',
-                          border: '1px solid #334155',
-                          borderRadius: 6,
-                          color: '#38bdf8',
-                          fontSize: 11,
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4,
-                        }}
-                        title="Save proxy to reusable pool"
-                      >
-                        <Bookmark size={12} />
-                        Save to Pool
-                      </button>
-                    </div>
-
-                    {proxyTestResult && (
-                      <div
-                        style={{
-                          fontSize: 11,
-                          padding: '8px 12px',
-                          borderRadius: 6,
-                          backgroundColor: proxyTestResult.success ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.15)',
-                          border: `1px solid ${proxyTestResult.success ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
-                          color: proxyTestResult.success ? '#34d399' : '#f87171',
-                        }}
-                      >
-                        {proxyTestResult.success ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                            <div style={{ fontWeight: 600 }}>
-                              ✓ Connection active · Ping: {proxyTestResult.latencyMs}ms
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: '#34d399' }}>
+                                🌐 Free Proxy Hub
+                              </span>
+                              <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#6ee7b7', fontWeight: 600 }}>
+                                {freeProxies.length} Verified Online
+                              </span>
                             </div>
-                            {(proxyTestResult.country || proxyTestResult.city || proxyTestResult.timezone) && (
-                              <div style={{ color: '#cbd5e1', fontSize: 10 }}>
-                                📍 Location: {[proxyTestResult.city, proxyTestResult.country].filter(Boolean).join(', ')}
-                                {proxyTestResult.timezone ? ` · 🕒 Timezone: ${proxyTestResult.timezone}` : ''}
+
+                            <button
+                              type="button"
+                              onClick={handleRefreshFreeProxies}
+                              disabled={loadingFreeProxies}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 5,
+                                padding: '5px 11px',
+                                backgroundColor: '#064e3b',
+                                border: '1px solid #059669',
+                                borderRadius: 6,
+                                color: '#34d399',
+                                fontSize: 11,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                              title="Scan and load brand-new connectable proxies"
+                            >
+                              {loadingFreeProxies ? <Loader2 size={12} className="animate-spin" /> : <RotateCw size={12} />}
+                              {loadingFreeProxies ? 'Verifying...' : 'Find New Proxies'}
+                            </button>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                            <select
+                              value={selectedFreeProxyId}
+                              onChange={(e) => handleSelectFreeProxy(e.target.value)}
+                              disabled={loadingFreeProxies}
+                              style={{
+                                flex: 1,
+                                padding: '8px 12px',
+                                backgroundColor: '#0c1412',
+                                border: '1px solid #059669',
+                                borderRadius: 7,
+                                color: '#34d399',
+                                fontSize: 12,
+                                outline: 'none',
+                              }}
+                            >
+                              <option value="">
+                                {loadingFreeProxies ? 'Testing & fetching live proxies...' : '-- Select Connectable Free Proxy (One-Click) --'}
+                              </option>
+                              {freeProxies.map((fp) => {
+                                const locationLabel = fp.city ? `${fp.country} (${fp.city})` : fp.country;
+                                return (
+                                  <option key={fp.id} value={fp.id}>
+                                    [{fp.countryCode || '??'}] {locationLabel} - {fp.protocol.toUpperCase()} ({fp.ip}:{fp.port}) · ⚡ {fp.speed}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* 2. Reusable Saved Proxy Pool */}
+                        {savedProxies.length > 0 && (
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 12,
+                              padding: '10px 14px',
+                              backgroundColor: '#121420',
+                              borderRadius: 8,
+                              border: '1px solid #282d40',
+                            }}
+                          >
+                            <Bookmark size={15} color="#38bdf8" />
+                            <span style={{ fontSize: 12, color: '#9ba1b0', fontWeight: 500 }}>Saved Proxy Pool:</span>
+                            <select
+                              value={selectedSavedProxyId}
+                              onChange={(e) => handleSelectSavedProxy(e.target.value)}
+                              style={{
+                                flex: 1,
+                                padding: '6px 10px',
+                                backgroundColor: '#0e1017',
+                                border: '1px solid #2f3448',
+                                borderRadius: 6,
+                                color: '#38bdf8',
+                                fontSize: 12,
+                              }}
+                            >
+                              <option value="">-- Choose saved proxy --</option>
+                              {savedProxies.map((sp) => (
+                                <option key={sp.id} value={sp.id}>
+                                  {sp.name} ({sp.mode.toUpperCase()} - {sp.host}:{sp.port})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        {/* 3. Manual Proxy Configuration Inputs */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          <div style={{ display: 'flex', gap: 10 }}>
+                            <div style={{ width: 120 }}>
+                              <label style={{ display: 'block', fontSize: 11, color: '#8890a5', marginBottom: 4 }}>
+                                Protocol
+                              </label>
+                              <select
+                                value={proxyMode}
+                                onChange={(e: any) => setProxyMode(e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '9px 10px',
+                                  backgroundColor: '#0e1017',
+                                  border: '1px solid #2c3245',
+                                  borderRadius: 8,
+                                  color: '#ffffff',
+                                  fontSize: 12,
+                                }}
+                              >
+                                <option value="socks5">SOCKS5</option>
+                                <option value="http">HTTP</option>
+                                <option value="https">HTTPS</option>
+                              </select>
+                            </div>
+
+                            <div style={{ flex: 1 }}>
+                              <label style={{ display: 'block', fontSize: 11, color: '#8890a5', marginBottom: 4 }}>
+                                Proxy Host (IP or Domain)
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="e.g. 192.168.1.1 or proxy.example.com"
+                                value={proxyHost}
+                                onChange={(e) => setProxyHost(e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '9px 12px',
+                                  backgroundColor: '#0e1017',
+                                  border: '1px solid #2c3245',
+                                  borderRadius: 8,
+                                  color: '#ffffff',
+                                  fontSize: 12,
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                }}
+                              />
+                            </div>
+
+                            <div style={{ width: 100 }}>
+                              <label style={{ display: 'block', fontSize: 11, color: '#8890a5', marginBottom: 4 }}>
+                                Port
+                              </label>
+                              <input
+                                type="number"
+                                placeholder="Port"
+                                value={proxyPort}
+                                onChange={(e) => setProxyPort(Number(e.target.value))}
+                                style={{
+                                  width: '100%',
+                                  padding: '9px 10px',
+                                  backgroundColor: '#0e1017',
+                                  border: '1px solid #2c3245',
+                                  borderRadius: 8,
+                                  color: '#ffffff',
+                                  fontSize: 12,
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                            <div>
+                              <label style={{ display: 'block', fontSize: 11, color: '#8890a5', marginBottom: 4 }}>
+                                Proxy Username (optional)
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="Username"
+                                value={proxyUsername}
+                                onChange={(e) => setProxyUsername(e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '9px 12px',
+                                  backgroundColor: '#0e1017',
+                                  border: '1px solid #2c3245',
+                                  borderRadius: 8,
+                                  color: '#ffffff',
+                                  fontSize: 12,
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label style={{ display: 'block', fontSize: 11, color: '#8890a5', marginBottom: 4 }}>
+                                Proxy Password (optional)
+                              </label>
+                              <input
+                                type="password"
+                                placeholder="Password"
+                                value={proxyPassword}
+                                onChange={(e) => setProxyPassword(e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '9px 12px',
+                                  backgroundColor: '#0e1017',
+                                  border: '1px solid #2c3245',
+                                  borderRadius: 8,
+                                  color: '#ffffff',
+                                  fontSize: 12,
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Dynamic IP Rotation URL & Save to Pool */}
+                          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                            <div style={{ flex: 1 }}>
+                              <input
+                                type="text"
+                                placeholder="Rotation / Change IP URL (e.g. http://proxy-provider.com/rotate?key=xxx)"
+                                value={changeIpUrl}
+                                onChange={(e) => setChangeIpUrl(e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '8px 12px',
+                                  backgroundColor: '#0e1017',
+                                  border: '1px solid #2c3245',
+                                  borderRadius: 8,
+                                  color: '#ffffff',
+                                  fontSize: 12,
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                }}
+                              />
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={handleSaveCurrentProxyToPool}
+                              disabled={!proxyHost.trim()}
+                              style={{
+                                padding: '8px 14px',
+                                backgroundColor: '#1e2433',
+                                border: '1px solid #334155',
+                                borderRadius: 8,
+                                color: '#38bdf8',
+                                fontSize: 12,
+                                fontWeight: 500,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                              }}
+                              title="Save current proxy to reusable pool"
+                            >
+                              <Bookmark size={13} />
+                              Save to Pool
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Test Status Banner */}
+                        {proxyTestResult && (
+                          <div
+                            style={{
+                              fontSize: 12,
+                              padding: '10px 14px',
+                              borderRadius: 8,
+                              backgroundColor: proxyTestResult.success ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.15)',
+                              border: `1px solid ${proxyTestResult.success ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                              color: proxyTestResult.success ? '#34d399' : '#f87171',
+                            }}
+                          >
+                            {proxyTestResult.success ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                <div style={{ fontWeight: 600 }}>
+                                  ✓ Connection active · Ping: {proxyTestResult.latencyMs}ms
+                                </div>
+                                {(proxyTestResult.country || proxyTestResult.city || proxyTestResult.timezone) && (
+                                  <div style={{ color: '#cbd5e1', fontSize: 11 }}>
+                                    📍 Location: {[proxyTestResult.city, proxyTestResult.country].filter(Boolean).join(', ')}
+                                    {proxyTestResult.timezone ? ` · 🕒 Timezone: ${proxyTestResult.timezone}` : ''}
+                                  </div>
+                                )}
                               </div>
+                            ) : (
+                              <div>✗ Connection failed: {proxyTestResult.error}</div>
                             )}
                           </div>
-                        ) : (
-                          <div>✗ Connection failed: {proxyTestResult.error}</div>
                         )}
                       </div>
                     )}
                   </div>
                 )}
+
+                {/* TAB 3: PRIVACY & FINGERPRINT & AUTOMATION */}
+                {editorTab === 'privacy' && (
+                  <>
+                    {/* Privacy Level Presets */}
+                    <div
+                      style={{
+                        padding: 18,
+                        backgroundColor: '#171a26',
+                        border: '1px solid #282d40',
+                        borderRadius: 12,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 16,
+                      }}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Shield size={15} color="#10b981" />
+                        Anti-Detect & Fingerprint Shields
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                        {[
+                          {
+                            id: 'standard',
+                            title: 'Standard',
+                            desc: 'Minimal spoofing, optimal for standard browsing & high compatibility.',
+                            color: '#94a3b8',
+                          },
+                          {
+                            id: 'balanced',
+                            title: 'Balanced',
+                            desc: 'Recommended. Spoofs Canvas, AudioContext, WebGL noise & font metrics.',
+                            color: '#3b82f6',
+                          },
+                          {
+                            id: 'strict',
+                            title: 'Strict Defense',
+                            desc: 'Maximum stealth. Randomizes hardware concurrency, memory & strict WebGL buffers.',
+                            color: '#10b981',
+                          },
+                        ].map((p) => (
+                          <div
+                            key={p.id}
+                            onClick={() => setPrivacyLevel(p.id as any)}
+                            style={{
+                              padding: '14px 14px',
+                              borderRadius: 10,
+                              backgroundColor: privacyLevel === p.id ? '#1e2436' : '#0e1017',
+                              border: `1.5px solid ${privacyLevel === p.id ? p.color : '#282d40'}`,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 6,
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff' }}>{p.title}</span>
+                              {privacyLevel === p.id && (
+                                <CheckCircle2 size={15} color={p.color} />
+                              )}
+                            </div>
+                            <span style={{ fontSize: 11, color: '#82899d', lineHeight: '1.4' }}>
+                              {p.desc}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* WebRTC Policy */}
+                      <div style={{ marginTop: 4 }}>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#9ba1b0', marginBottom: 6 }}>
+                          WebRTC IP Leakage Shield
+                        </label>
+                        <select
+                          value={webrtcPolicy}
+                          onChange={(e: any) => setWebrtcPolicy(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '9px 12px',
+                            backgroundColor: '#0e1017',
+                            border: '1px solid #2c3245',
+                            borderRadius: 8,
+                            color: '#ffffff',
+                            fontSize: 12,
+                          }}
+                        >
+                          <option value="default_public_interface_only">Prevent LAN & Private IP Leaks (Default Public Interface Only)</option>
+                          <option value="disable_non_proxied_udp">Disable Non-Proxied UDP (Maximum Leak Protection)</option>
+                          <option value="default">Default Chromium Policy</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Automation Port & Ephemeral Profile */}
+                    <div
+                      style={{
+                        padding: 18,
+                        backgroundColor: '#171a26',
+                        border: '1px solid #282d40',
+                        borderRadius: 12,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 16,
+                      }}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Settings size={15} color="#a855f7" />
+                        Automation & Storage Behavior
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#9ba1b0', marginBottom: 6 }}>
+                          Automation Remote Debugging Port (Puppeteer / Playwright CDP)
+                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <input
+                            type="number"
+                            placeholder="e.g. 9222 (Optional)"
+                            value={remoteDebuggingPort}
+                            onChange={(e) => setRemoteDebuggingPort(e.target.value ? Number(e.target.value) : '')}
+                            min={1024}
+                            max={65535}
+                            style={{
+                              width: 220,
+                              padding: '9px 12px',
+                              backgroundColor: '#0e1017',
+                              border: '1px solid #2c3245',
+                              borderRadius: 8,
+                              color: '#ffffff',
+                              fontSize: 12,
+                              boxSizing: 'border-box',
+                            }}
+                          />
+                          <span style={{ fontSize: 12, color: '#82899d' }}>
+                            Leave blank unless connecting via automated Puppeteer or Playwright scripts.
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Ephemeral Profile Toggle */}
+                      <label
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          padding: '12px 14px',
+                          backgroundColor: '#0e1017',
+                          borderRadius: 8,
+                          border: '1px solid #282d40',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isTemporary}
+                          onChange={(e) => setIsTemporary(e.target.checked)}
+                          style={{ width: 16, height: 16, accentColor: '#ef4444', cursor: 'pointer' }}
+                        />
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#ffffff' }}>
+                            Ephemeral / Temporary Session
+                          </div>
+                          <div style={{ fontSize: 11, color: '#82899d' }}>
+                            All cookies, localStorage, session files, and cache are completely purged when the browser window closes.
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  </>
+                )}
               </div>
-
-              {/* Privacy & WebRTC Controls */}
-              <div style={{ display: 'flex', gap: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
-                    Privacy Protection Mode
-                  </label>
-                  <select
-                    value={privacyLevel}
-                    onChange={(e: any) => setPrivacyLevel(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 10px',
-                      backgroundColor: '#12131b',
-                      border: '1px solid #2f3448',
-                      borderRadius: 8,
-                      color: '#ffffff',
-                      fontSize: 12,
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    <option value="standard">Standard (Fast, Compatible)</option>
-                    <option value="balanced">Balanced Privacy (Recommended)</option>
-                    <option value="strict">Strict Privacy (Maximum Defense)</option>
-                  </select>
-                </div>
-
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 6 }}>
-                    WebRTC IP Protection
-                  </label>
-                  <select
-                    value={webrtcPolicy}
-                    onChange={(e: any) => setWebrtcPolicy(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 10px',
-                      backgroundColor: '#12131b',
-                      border: '1px solid #2f3448',
-                      borderRadius: 8,
-                      color: '#ffffff',
-                      fontSize: 12,
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    <option value="default_public_interface_only">Prevent LAN IP Leaks</option>
-                    <option value="disable_non_proxied_udp">Disable Non-Proxied UDP</option>
-                    <option value="default">Default Chromium</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Automation / Remote Debugging Port */}
-              <div>
-                <label style={{ display: 'block', fontSize: 12, color: '#9ba1b0', marginBottom: 4 }}>
-                  Automation Remote Debugging Port (Puppeteer / Playwright)
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <input
-                    type="number"
-                    placeholder="e.g. 9222 (Optional)"
-                    value={remoteDebuggingPort}
-                    onChange={(e) => setRemoteDebuggingPort(e.target.value ? Number(e.target.value) : '')}
-                    min={1024}
-                    max={65535}
-                    style={{
-                      width: 200,
-                      padding: '8px 10px',
-                      backgroundColor: '#12131b',
-                      border: '1px solid #2f3448',
-                      borderRadius: 8,
-                      color: '#ffffff',
-                      fontSize: 12,
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                  <span style={{ fontSize: 11, color: '#64748b' }}>
-                    Leave blank to disable automation port
-                  </span>
-                </div>
-              </div>
-
-              {/* Ephemeral checkbox */}
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#9ba1b0', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={isTemporary}
-                  onChange={(e) => setIsTemporary(e.target.checked)}
-                />
-                Temporary Profile (all cookies & partition data wiped upon close)
-              </label>
             </div>
 
-            {/* Editor Actions */}
+            {/* Editor Actions Footer Bar */}
             <div
               style={{
-                padding: '14px 22px',
-                borderTop: '1px solid #282c3d',
-                backgroundColor: '#151720',
+                padding: '16px 28px',
+                borderTop: '1px solid #232738',
+                backgroundColor: '#151824',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'flex-end',
-                gap: 10,
+                justifyContent: 'space-between',
               }}
             >
-              <button
-                type="button"
-                onClick={() => setIsCreateOpen(false)}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#232635',
-                  border: '1px solid #33384c',
-                  borderRadius: 8,
-                  color: '#9ba1b0',
-                  fontSize: 13,
-                  cursor: 'pointer',
-                }}
-              >
-                Cancel
-              </button>
+              <div style={{ fontSize: 12, color: '#82899d' }}>
+                {editingProfileId ? 'Changes will take effect upon next launch.' : 'New profile will be initialized with a unique partition.'}
+              </div>
 
-              <button
-                disabled={!isAuthenticated}
-                type="button"
-                onClick={() => handleSaveProfile(false)}
-                style={{
-                  padding: '8px 18px',
-                  backgroundColor: '#3b82f6',
-                  border: 'none',
-                  borderRadius: 8,
-                  color: '#ffffff',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                {editingProfileId ? 'Save Changes' : 'Create Profile'}
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsCreateOpen(false)}
+                  style={{
+                    padding: '9px 18px',
+                    backgroundColor: '#202434',
+                    border: '1px solid #2f354b',
+                    borderRadius: 8,
+                    color: '#9ba1b0',
+                    fontSize: 13,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
 
-              <button
-                disabled={!isAuthenticated}
-                type="button"
-                onClick={() => handleSaveProfile(true)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '8px 18px',
-                  backgroundColor: '#10b981',
-                  border: 'none',
-                  borderRadius: 8,
-                  color: '#ffffff',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                }}
-              >
-                <Play size={13} fill="#fff" />
-                Save & Launch
-              </button>
+                <button
+                  disabled={!isAuthenticated}
+                  type="button"
+                  onClick={() => handleSaveProfile(false)}
+                  style={{
+                    padding: '9px 20px',
+                    backgroundColor: '#3b82f6',
+                    border: 'none',
+                    borderRadius: 8,
+                    color: '#ffffff',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)',
+                  }}
+                >
+                  {editingProfileId ? 'Save Changes' : 'Create Profile'}
+                </button>
+
+                <button
+                  disabled={!isAuthenticated}
+                  type="button"
+                  onClick={() => handleSaveProfile(true)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 7,
+                    padding: '9px 20px',
+                    backgroundColor: '#10b981',
+                    border: 'none',
+                    borderRadius: 8,
+                    color: '#ffffff',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                  }}
+                >
+                  <Play size={13} fill="#fff" />
+                  Save & Launch
+                </button>
+              </div>
             </div>
           </div>
         </div>
