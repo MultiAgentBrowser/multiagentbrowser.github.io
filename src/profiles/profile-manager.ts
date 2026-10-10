@@ -281,9 +281,10 @@ export class ProfileManager {
 
   private refreshProfiles(): void {
     const loaded = ProfileStorage.loadProfilesManifest();
-    this.profiles = new Map(loaded.map((profile) => [profile.id, profile]));
+    const cleaned = ProfileStorage.removeDemoProfiles(loaded);
+    this.profiles = new Map(cleaned.map((profile) => [profile.id, profile]));
     if (!this.activeProfileId || !this.profiles.has(this.activeProfileId)) {
-      this.activeProfileId = loaded[0]?.id ?? null;
+      this.activeProfileId = cleaned[0]?.id ?? null;
     }
   }
 }

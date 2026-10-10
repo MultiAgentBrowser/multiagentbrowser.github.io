@@ -790,6 +790,47 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                   </tr>
                 );
               })}
+              {filteredProfiles.length === 0 && (
+                <tr>
+                  <td colSpan={7} style={{ padding: '60px 24px', textAlign: 'center', color: '#8b92a2' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                      <div style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: '#1f222e', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #2d3345' }}>
+                        <User size={24} color="#60a5fa" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: '#e2e4e9', marginBottom: 4 }}>
+                          {searchQuery || filterBrowser !== 'all' || filterOS !== 'all' ? 'No matching profiles found' : 'No profiles created yet'}
+                        </div>
+                        <div style={{ fontSize: 12, color: '#9ba1b0' }}>
+                          {searchQuery || filterBrowser !== 'all' || filterOS !== 'all' ? 'Try adjusting your search query or filters.' : 'Click "New Profile" to create your first isolated browser profile.'}
+                        </div>
+                      </div>
+                      {!searchQuery && filterBrowser === 'all' && filterOS === 'all' && (
+                        <button
+                          onClick={handleOpenCreate}
+                          style={{
+                            marginTop: 6,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '8px 18px',
+                            backgroundColor: '#3b82f6',
+                            border: 'none',
+                            borderRadius: 8,
+                            color: '#ffffff',
+                            fontSize: 13,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <Plus size={15} />
+                          Create Profile
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

@@ -202,5 +202,14 @@ describe('ProfileManager Lifecycle & Storage Isolation', () => {
     expect(reloadedManager.getProfile(temporary.id)).toBeDefined();
 
     ProfileLock.release(temporary.id);
+    reloadedManager.deleteProfile(temporary.id);
+  });
+
+  afterEach(() => {
+    ProfileDatabase.getInstance().clear();
+    const manifest = path.join(AppPaths.getProfilesDir(), 'profiles.json');
+    if (fs.existsSync(manifest)) {
+      fs.unlinkSync(manifest);
+    }
   });
 });

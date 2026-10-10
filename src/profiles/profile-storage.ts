@@ -169,9 +169,15 @@ export class ProfileStorage {
     db.deleteProfile(profileId);
   }
 
+  public static isDemoOrTestProfile(profile: { id: string; name: string }): boolean {
+    if (this.demoProfileIds.has(profile.id)) return true;
+    const lowerName = (profile.name || '').trim().toLowerCase();
+    return lowerName === 'keep me' || lowerName.startsWith('demo');
+  }
+
   public static removeDemoProfiles(profiles: ProfileRecord[]): ProfileRecord[] {
-    const remaining = profiles.filter((profile) => !this.demoProfileIds.has(profile.id));
-    const removedProfiles = profiles.filter((profile) => this.demoProfileIds.has(profile.id));
+    const remaining = profiles.filter((profile) => !this.isDemoOrTestProfile(profile));
+    const removedProfiles = profiles.filter((profile) => this.isDemoOrTestProfile(profile));
     if (removedProfiles.length === 0) return profiles;
 
     for (const profile of removedProfiles) this.deleteProfileDirectory(profile.id);

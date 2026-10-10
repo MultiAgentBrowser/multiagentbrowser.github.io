@@ -70,12 +70,36 @@ export async function syncProfilesFromCloud(user: User): Promise<Profile[]> {
   await demoBatch.commit();
 
   const snapshot = await execute(db.pipeline().collection(`users/${user.uid}/profiles`));
-  const remoteProfiles = snapshot.results.map((profileDoc) => {
+  const rawProfiles = snapshot.results.map((profileDoc) => {
     if (!profileDoc.id) {
       throw new Error('Cloud profile query returned a non-document result.');
     }
     return parseCloudProfile(profileDoc.id, profileDoc.data());
   });
+
+  const remoteProfiles: Profile[] = [];
+  const cleanupBatch = writeBatch(db);
+  let hasCleanup = false;
+
+  for (const p of rawProfiles) {
+    const lowerName = (p.name || '').trim().toLowerCase();
+    if (
+      demoProfileIds.includes(p.id) ||
+      lowerName === 'keep me' ||
+      lowerName === 'temporary session' ||
+      lowerName === 'running temporary' ||
+      lowerName.startsWith('demo')
+    ) {
+      cleanupBatch.delete(doc(db, 'users', user.uid, 'profiles', p.id));
+      hasCleanup = true;
+    } else {
+      remoteProfiles.push(p);
+    }
+  }
+
+  if (hasCleanup) {
+    await cleanupBatch.commit();
+  }
 
   const accountProfiles = await window.browserAPI.replaceCloudProfiles(remoteProfiles);
   await saveProfiles(db, user.uid, accountProfiles);

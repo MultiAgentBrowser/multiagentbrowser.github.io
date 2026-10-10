@@ -116,6 +116,16 @@ describe('Multi-Profile Simultaneous Isolation Integration Tests', () => {
     expect(fs.existsSync(ephemeralDir)).toBe(false);
     // Persistent directory must remain untouched
     expect(fs.existsSync(persistentDir)).toBe(true);
+
+    profileManager.deleteProfile(persistent.id);
+  });
+
+  afterEach(() => {
+    ProfileDatabase.getInstance().clear();
+    const manifest = path.join(AppPaths.getProfilesDir(), 'profiles.json');
+    if (fs.existsSync(manifest)) {
+      fs.unlinkSync(manifest);
+    }
   });
 });
 
