@@ -1,5 +1,11 @@
 import { StandardizedEnvironment } from './fingerprint-config';
 
+export interface ProxyGeoInfo {
+  timezone?: string;
+  latitude?: number;
+  longitude?: number;
+}
+
 export class FingerprintInjector {
   /**
    * Generates the client-side JavaScript injection code to protect against fingerprinting.
@@ -7,7 +13,8 @@ export class FingerprintInjector {
   public static generateInjectionScript(
     env: StandardizedEnvironment,
     profileSeed: string,
-    mode: 'standard' | 'balanced' | 'strict' = 'balanced'
+    mode: 'standard' | 'balanced' | 'strict' = 'balanced',
+    proxyGeo?: ProxyGeoInfo
   ): string {
     return `
 (() => {
@@ -19,6 +26,9 @@ export class FingerprintInjector {
   const DEVICE_MEMORY = ${env.deviceMemory};
   const VENDOR_WEBGL = ${JSON.stringify(env.webglVendor)};
   const RENDERER_WEBGL = ${JSON.stringify(env.webglRenderer)};
+  const PROXY_TIMEZONE = ${JSON.stringify(proxyGeo?.timezone || null)};
+  const PROXY_LAT = ${proxyGeo?.latitude ?? 'null'};
+  const PROXY_LON = ${proxyGeo?.longitude ?? 'null'};
 
   // 1. Hardware Concurrency & Device Memory Normalization
   try {
@@ -159,6 +169,37 @@ export class FingerprintInjector {
   try {
     Object.defineProperty(Screen.prototype, 'colorDepth', { get: () => 24, configurable: true });
     Object.defineProperty(Screen.prototype, 'pixelDepth', { get: () => 24, configurable: true });
+  } catch (e) {}
+
+  // 9. Timezone & Geolocation Auto-Matching
+  try {
+    if (PROXY_TIMEZONE) {
+      const origResolvedOptions = Intl.DateTimeFormat.prototype.resolvedOptions;
+      Intl.DateTimeFormat.prototype.resolvedOptions = function() {
+        const res = origResolvedOptions.apply(this, arguments);
+        res.timeZone = PROXY_TIMEZONE;
+        return res;
+      };
+    }
+
+    if (PROXY_LAT !== null && PROXY_LON !== null && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition = function(success, error, options) {
+        if (success) {
+          success({
+            coords: {
+              latitude: PROXY_LAT,
+              longitude: PROXY_LON,
+              accuracy: 25,
+              altitude: null,
+              altitudeAccuracy: null,
+              heading: null,
+              speed: null,
+            },
+            timestamp: Date.now(),
+          });
+        }
+      };
+    }
   } catch (e) {}
 })();
 `;

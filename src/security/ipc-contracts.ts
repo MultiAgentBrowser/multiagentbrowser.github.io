@@ -140,6 +140,7 @@ export const IPC_CHANNELS = {
   PROXY_LIST_SAVED: 'proxy:list-saved',
   PROXY_SAVE: 'proxy:save',
   PROXY_DELETE_SAVED: 'proxy:delete-saved',
+  PROXY_LIST_FREE: 'proxy:list-free',
 
   // Permissions
   PERMISSION_LIST: 'permission:list',

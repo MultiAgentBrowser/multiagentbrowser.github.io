@@ -9,7 +9,8 @@ export function createFingerprintProtectionExtension(
   targetDir: string,
   profileId: string,
   os: 'mac' | 'windows',
-  mode: 'standard' | 'balanced' | 'strict'
+  mode: 'standard' | 'balanced' | 'strict',
+  proxyGeo?: { timezone?: string; latitude?: number; longitude?: number }
 ): string {
   fs.mkdirSync(targetDir, { recursive: true });
 
@@ -65,7 +66,8 @@ if (chrome.privacy?.websites?.thirdPartyCookiesAllowed) {
   const script = FingerprintInjector.generateInjectionScript(
     FingerprintConfig.getConsistentEnvironment(os === 'mac'),
     getProfileFingerprintSeed(profileId),
-    mode
+    mode,
+    proxyGeo
   );
 
   fs.writeFileSync(path.join(targetDir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf-8');

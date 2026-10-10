@@ -27,6 +27,8 @@ import {
   FileText,
   Bookmark,
   Layers,
+  Flame,
+  Compass,
 } from 'lucide-react';
 import { Profile, ProxyConfig, SavedProxy } from '../../security/ipc-contracts';
 import { getBrowserUserAgent } from '../../profiles/browser-definitions';
@@ -78,6 +80,9 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   const [changeIpUrl, setChangeIpUrl] = useState('');
   const [savedProxies, setSavedProxies] = useState<SavedProxy[]>([]);
   const [selectedSavedProxyId, setSelectedSavedProxyId] = useState<string>('');
+  const [freeProxies, setFreeProxies] = useState<any[]>([]);
+  const [loadingFreeProxies, setLoadingFreeProxies] = useState(false);
+  const [selectedFreeProxyId, setSelectedFreeProxyId] = useState<string>('');
 
   // Proxy test and rotation state
   const [testingProxy, setTestingProxy] = useState(false);
@@ -130,12 +135,22 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     }
   }, []);
 
-  // Load saved proxies on mount
+  // Load saved proxies & free proxies on mount
   useEffect(() => {
     if (window.browserAPI && (window.browserAPI as any).listSavedProxies) {
       (window.browserAPI as any).listSavedProxies().then((list: SavedProxy[]) => {
         setSavedProxies(list || []);
       });
+    }
+
+    if (window.browserAPI && (window.browserAPI as any).listFreeProxies) {
+      setLoadingFreeProxies(true);
+      (window.browserAPI as any).listFreeProxies()
+        .then((freeList: any[]) => {
+          setFreeProxies(freeList || []);
+        })
+        .catch(() => {})
+        .finally(() => setLoadingFreeProxies(false));
     }
   }, []);
 
@@ -232,6 +247,49 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
       alert(`Error rotating proxy: ${err.message}`);
     } finally {
       setRotatingProfileId(null);
+    }
+  };
+
+  const handleWarmUpProfile = async (profileId: string) => {
+    // Cookie Warm-up Bot: seeds trustworthy popular sites
+    const warmupSites = [
+      'https://www.wikipedia.org',
+      'https://www.google.com',
+      'https://www.bing.com',
+      'https://www.reddit.com',
+      'https://duckduckgo.com',
+    ];
+
+    if (window.browserAPI && (window.browserAPI as any).saveSavedSession) {
+      try {
+        await (window.browserAPI as any).saveSavedSession(profileId, {
+          cookies: [],
+          openUrls: warmupSites.slice(0, 3),
+        });
+        alert(`🔥 Cookie Warm-up initialized for this profile! Launching will visit high-reputation domains to seed authentic browsing cookies & history.`);
+        await handleLaunch(profileId);
+      } catch (err: any) {
+        alert(`Could not start warm-up: ${err.message}`);
+      }
+    } else {
+      await handleLaunch(profileId);
+    }
+  };
+
+  const handleQuickLeakTest = async (profileId: string) => {
+    // Quick IP Leak & Fingerprint Test
+    if (window.browserAPI && (window.browserAPI as any).saveSavedSession) {
+      try {
+        await (window.browserAPI as any).saveSavedSession(profileId, {
+          cookies: [],
+          openUrls: ['https://whoer.net', 'https://iphey.com'],
+        });
+        await handleLaunch(profileId);
+      } catch {
+        await handleLaunch(profileId);
+      }
+    } else {
+      await handleLaunch(profileId);
     }
   };
 
@@ -468,6 +526,23 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
       setProxyUsername(found.username || '');
       setProxyPassword(found.password || '');
       setChangeIpUrl(found.changeIpUrl || '');
+    }
+  };
+
+  const handleSelectFreeProxy = (freeId: string) => {
+    setSelectedFreeProxyId(freeId);
+    if (!freeId) return;
+    const found = freeProxies.find((fp) => fp.id === freeId);
+    if (found) {
+      setProxyEnabled(true);
+      setProxyMode(found.protocol === 'http' || found.protocol === 'https' ? 'http' : 'socks5');
+      setProxyHost(found.ip);
+      setProxyPort(found.port);
+      setProxyUsername('');
+      setProxyPassword('');
+      setChangeIpUrl('');
+      setSelectedSavedProxyId('');
+      setProxyTestResult(null);
     }
   };
 
@@ -1281,6 +1356,36 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                         </button>
 
                         <button
+                          onClick={() => handleWarmUpProfile(p.id)}
+                          style={{
+                            background: '#232634',
+                            border: '1px solid #32374b',
+                            borderRadius: 6,
+                            color: '#f97316',
+                            padding: 6,
+                            cursor: 'pointer',
+                          }}
+                          title="Cookie Warming Bot (Seed history & cookies on popular domains)"
+                        >
+                          <Flame size={14} />
+                        </button>
+
+                        <button
+                          onClick={() => handleQuickLeakTest(p.id)}
+                          style={{
+                            background: '#232634',
+                            border: '1px solid #32374b',
+                            borderRadius: 6,
+                            color: '#06b6d4',
+                            padding: 6,
+                            cursor: 'pointer',
+                          }}
+                          title="Quick IP & Fingerprint Leak Test (whoer.net / iphey.com)"
+                        >
+                          <Compass size={14} />
+                        </button>
+
+                        <button
                           disabled={!isAuthenticated}
                           onClick={() => handleOpenEdit(p)}
                           style={{
@@ -1684,6 +1789,31 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
 
                 {proxyEnabled && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {/* Free Proxy Directory Selector */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 11, color: '#34d399', fontWeight: 600 }}>🌐 Free Public Proxy Hub:</span>
+                      <select
+                        value={selectedFreeProxyId}
+                        onChange={(e) => handleSelectFreeProxy(e.target.value)}
+                        style={{
+                          flex: 1,
+                          padding: '6px 8px',
+                          backgroundColor: '#0f1017',
+                          border: '1px solid #10b981',
+                          borderRadius: 6,
+                          color: '#34d399',
+                          fontSize: 11,
+                        }}
+                      >
+                        <option value="">-- Select Free Public Proxy (One-Click) --</option>
+                        {freeProxies.map((fp) => (
+                          <option key={fp.id} value={fp.id}>
+                            [{fp.countryCode || '??'}] {fp.country} - {fp.protocol.toUpperCase()} ({fp.ip}:{fp.port}) · {fp.speed}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
                     {/* Saved Proxy Pool Selector */}
                     {savedProxies.length > 0 && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

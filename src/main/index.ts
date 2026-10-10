@@ -231,6 +231,11 @@ function registerIpcHandlers() {
     return SavedProxyStorage.delete(id);
   });
 
+  ipcMain.handle(IPC_CHANNELS.PROXY_LIST_FREE, async () => {
+    const { FreeProxyService } = await import('../network/proxy/free-proxy-service');
+    return FreeProxyService.fetchFreeProxies();
+  });
+
   // Permission IPC handlers
   ipcMain.handle(IPC_CHANNELS.PERMISSION_LIST, async (_event, { profileId }) => {
     const { PermissionManager } = await import('../permissions/permission-manager');

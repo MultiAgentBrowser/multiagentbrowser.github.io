@@ -75,12 +75,37 @@ export class BrowserInstanceManager {
       }
 
       const proxyRules = ProxyManager.buildProxyRules(profile.proxy);
+
+      // Resolve Proxy IP Geo & Timezone for auto-matching (if enabled)
+      let proxyGeo: { timezone?: string; latitude?: number; longitude?: number } | undefined;
+      if (profile.proxy.enabled && profile.proxy.host && /^(?:\d{1,3}\.){3}\d{1,3}$/.test(profile.proxy.host.trim())) {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 1500);
+          const geoRes = await fetch(`https://ipwho.is/${profile.proxy.host.trim()}`, { signal: controller.signal });
+          clearTimeout(timer);
+          if (geoRes.ok) {
+            const data = await geoRes.json();
+            if (data && data.success) {
+              proxyGeo = {
+                timezone: data.timezone?.id,
+                latitude: data.latitude,
+                longitude: data.longitude,
+              };
+            }
+          }
+        } catch {
+          // Graceful fallback to default timezone
+        }
+      }
+
       const extensionPaths = [
         createFingerprintProtectionExtension(
           path.join(userDataPath, 'FingerprintProtectionExtension'),
           profile.id,
           profile.os,
-          profile.privacyLevel
+          profile.privacyLevel,
+          proxyGeo
         ),
         createSessionSyncExtension(
           path.join(userDataPath, 'SessionSyncExtension'),
