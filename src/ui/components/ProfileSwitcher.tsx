@@ -1845,11 +1845,14 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                         <option value="">
                           {loadingFreeProxies ? 'Testing & fetching live proxies...' : '-- Select Connectable Free Proxy (One-Click) --'}
                         </option>
-                        {freeProxies.map((fp) => (
-                          <option key={fp.id} value={fp.id}>
-                            [{fp.countryCode || '??'}] {fp.country} - {fp.protocol.toUpperCase()} ({fp.ip}:{fp.port}) · ⚡ {fp.speed}
-                          </option>
-                        ))}
+                        {freeProxies.map((fp) => {
+                          const locationLabel = fp.city ? `${fp.country} (${fp.city})` : fp.country;
+                          return (
+                            <option key={fp.id} value={fp.id}>
+                              [{fp.countryCode || '??'}] {locationLabel} - {fp.protocol.toUpperCase()} ({fp.ip}:{fp.port}) · ⚡ {fp.speed}
+                            </option>
+                          );
+                        })}
                       </select>
 
                       <button
