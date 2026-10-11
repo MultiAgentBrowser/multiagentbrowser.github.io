@@ -105,7 +105,16 @@ to reduce Windows security warnings.
 
 ## Release
 ```sh
-git add package.json package-lock.json electron-builder.yml
-git commit -m "chore: release v1.0.1"
-git push origin main
+
+git tag v1.0.1
+git push origin v1.0.1
+
+gh release create v1.0.1 \
+  "release/Multi Agent-1.0.1-arm64.dmg" \
+  "release/Multi Agent-1.0.1.dmg" \
+  "release/Multi Agent Setup 1.0.1.exe" \
+  "release/latest-mac.yml" \
+  "release/latest.yml" \
+  --title "Multi Agent v1.0.1" \
+  --notes "Release v1.0.1: Modernized Command Center Dashboard, responsive layout, engine switching, and cloud sync improvements."
 ```
