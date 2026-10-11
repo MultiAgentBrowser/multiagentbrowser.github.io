@@ -18,7 +18,7 @@ import {
 import { getFirebaseServices, isFirebaseConfigured } from '../services/firebase';
 import { getSignInErrorMessage } from '../services/auth-error-message';
 import { deleteProfileFromCloud, saveProfileCookiesToCloud, saveProfileToCloud, syncProfilesFromCloud } from '../services/cloud-profile-sync';
-import appLogo from '../../../build/icon.svg';
+import appLogo from '../icon.svg';
 
 interface CloudSyncPanelProps {
   onProfilesUpdated: () => void | Promise<void>;
@@ -205,8 +205,8 @@ export const CloudSyncPanel: React.FC<CloudSyncPanelProps> = ({
   };
 
   const blockingSignIn = required && !user;
-  const blockingSync = required && Boolean(user);
-  const showBlockingDialog = required && authResolved;
+  const blockingSync = required && Boolean(user) && Boolean(error);
+  const showBlockingDialog = required && authResolved && (blockingSignIn || blockingSync);
   const showSettingsDialog = !required && Boolean(user) && isOpen;
   const showDialog = showBlockingDialog || showSettingsDialog;
 

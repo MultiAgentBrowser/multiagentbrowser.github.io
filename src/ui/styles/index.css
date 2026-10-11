@@ -927,3 +927,154 @@
   position: relative;
   background-color: #0f1013;
 }
+
+/* Dashboard Responsive & Modern Styling */
+.dashboard-root {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: #0f1118;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: linear-gradient(180deg, #151722 0%, #10121a 100%);
+  flex-wrap: wrap;
+}
+
+.dashboard-filter-bar {
+  padding: 12px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(18, 20, 29, 0.85);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dashboard-search-container {
+  display: flex;
+  align-items: center;
+  background: #11131c;
+  border: 1px solid #25293d;
+  border-radius: 9px;
+  padding: 0 12px;
+  height: 36px;
+  min-width: 240px;
+  flex: 1;
+  max-width: 380px;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.dashboard-search-container:focus-within {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.dashboard-metrics-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dashboard-table-container {
+  flex: 1;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dashboard-table-container::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.dashboard-table-container::-webkit-scrollbar-track {
+  background: #0f1118;
+}
+
+.dashboard-table-container::-webkit-scrollbar-thumb {
+  background: #232738;
+  border-radius: 4px;
+}
+
+.dashboard-table-container::-webkit-scrollbar-thumb:hover {
+  background: #333950;
+}
+
+.dashboard-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: left;
+  font-size: 13px;
+}
+
+/* Sticky Actions Column on smaller displays */
+.col-actions-header {
+  position: sticky;
+  right: 0;
+  background-color: #12141e;
+  z-index: 20;
+  box-shadow: -4px 0 12px rgba(0, 0, 0, 0.4);
+}
+
+.col-actions-cell {
+  position: sticky;
+  right: 0;
+  background-color: #13151f;
+  z-index: 5;
+  box-shadow: -4px 0 12px rgba(0, 0, 0, 0.35);
+  transition: background-color 0.15s ease;
+}
+
+tr:hover .col-actions-cell {
+  background-color: #1a1c28;
+}
+
+/* Desktop actions vs Compact action menu */
+.actions-desktop-tools {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.actions-mobile-tools {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .actions-desktop-tools {
+    display: none;
+  }
+  .actions-mobile-tools {
+    display: flex;
+    align-items: center;
+    position: relative;
+  }
+}
+
+@media (max-width: 1024px) {
+  .dashboard-header {
+    padding: 12px 16px;
+  }
+  .dashboard-filter-bar {
+    padding: 10px 16px;
+  }
+  .dashboard-metrics-container {
+    display: none;
+  }
+}

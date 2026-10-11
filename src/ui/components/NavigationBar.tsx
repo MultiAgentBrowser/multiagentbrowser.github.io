@@ -74,7 +74,9 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
 
       <form onSubmit={onNavigate} className="url-input-container">
         {isSecure ? (
-          <Lock size={14} color="#34d399" title="Connection is encrypted (HTTPS)" />
+          <span title="Connection is encrypted (HTTPS)" style={{ display: 'inline-flex', alignItems: 'center' }}>
+            <Lock size={14} color="#34d399" />
+          </span>
         ) : (
           <Globe size={14} color="#9ba1b0" />
         )}

@@ -4,7 +4,7 @@ import { LoaderCircle } from 'lucide-react';
 import { Profile } from '../security/ipc-contracts';
 import { CloudSyncPanel } from './components/CloudSyncPanel';
 import { ProfileSwitcher } from './components/ProfileSwitcher';
-import appLogo from '../../build/icon.svg';
+import appLogo from './icon.svg';
 import './styles/index.css';
 
 const App: React.FC = () => {

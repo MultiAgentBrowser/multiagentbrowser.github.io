@@ -33,6 +33,10 @@ import {
   AlertCircle,
   ArrowDownCircle,
   CheckCircle,
+  Zap,
+  Activity,
+  MoreVertical,
+  ChevronDown,
 } from 'lucide-react';
 import { Profile, ProxyConfig, SavedProxy } from '../../security/ipc-contracts';
 import { getBrowserUserAgent } from '../../profiles/browser-definitions';
@@ -126,6 +130,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   // Auto Updater State
   const [updateStatus, setUpdateStatus] = useState<any>({ status: 'idle' });
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [activeActionMenuProfileId, setActiveActionMenuProfileId] = useState<string | null>(null);
 
   // Auto Updater listener
   useEffect(() => {
@@ -785,65 +790,108 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
       }}
     >
       {!isCreateOpen && (
-      <div
-        style={{
-          width: '100%',
-          height: '100%',
-          minHeight: 0,
-          backgroundColor: '#16181f',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
+      <div className="dashboard-root">
         {/* Top Header Bar */}
-        <div
-          style={{
-            padding: '16px 24px',
-            borderBottom: '1px solid #272a38',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            background: 'linear-gradient(180deg, #1d202b 0%, #16181f 100%)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: 10,
-                backgroundColor: 'rgba(59, 130, 246, 0.15)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: '1px solid rgba(59, 130, 246, 0.3)',
-              }}
-            >
-              <User size={22} color="#3b82f6" />
+        <div className="dashboard-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 12,
+                  background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.3) 0%, rgba(147, 51, 234, 0.3) 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '1px solid rgba(99, 102, 241, 0.4)',
+                  boxShadow: '0 4px 16px rgba(59, 130, 246, 0.2)',
+                  flexShrink: 0,
+                }}
+              >
+                <Zap size={22} color="#60a5fa" />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <h2 style={{ fontSize: 18, fontWeight: 700, color: '#ffffff', margin: 0, letterSpacing: '-0.02em' }}>
+                    Profile Manager
+                  </h2>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                      color: '#34d399',
+                      border: '1px solid rgba(16, 185, 129, 0.25)',
+                      padding: '2px 7px',
+                      borderRadius: 10,
+                      fontWeight: 600,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}
+                  >
+                    <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }} />
+                    Active Sandbox
+                  </span>
+                </div>
+                <p style={{ margin: 0, fontSize: 11, color: '#82899d', marginTop: 2 }}>
+                  Anti-detect fingerprinting, isolated proxies & cookie vault
+                </p>
+              </div>
             </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <h2 style={{ fontSize: 18, fontWeight: 700, color: '#ffffff', margin: 0 }}>
-                  Profiles
-                </h2>
-                <span
-                  style={{
-                    fontSize: 11,
-                    backgroundColor: '#1e293b',
-                    color: '#38bdf8',
-                    padding: '2px 8px',
-                    borderRadius: 10,
-                    fontWeight: 600,
-                  }}
-                >
-                  {runningProfileIds.length} running · {profiles.length} total
+
+            {/* Quick Metrics Pills */}
+            <div className="dashboard-metrics-container" style={{ borderLeft: '1px solid #282d40', paddingLeft: 16 }}>
+              <div
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: 8,
+                  backgroundColor: '#161825',
+                  border: '1px solid #25293d',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 1,
+                }}
+              >
+                <span style={{ fontSize: 9, textTransform: 'uppercase', color: '#8890a5', fontWeight: 600, letterSpacing: '0.04em' }}>Profiles</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#ffffff' }}>{profiles.length}</span>
+              </div>
+
+              <div
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: 8,
+                  backgroundColor: runningProfileIds.length > 0 ? 'rgba(16, 185, 129, 0.08)' : '#161825',
+                  border: `1px solid ${runningProfileIds.length > 0 ? 'rgba(16, 185, 129, 0.3)' : '#25293d'}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 1,
+                }}
+              >
+                <span style={{ fontSize: 9, textTransform: 'uppercase', color: runningProfileIds.length > 0 ? '#34d399' : '#8890a5', fontWeight: 600, letterSpacing: '0.04em' }}>Running</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: runningProfileIds.length > 0 ? '#34d399' : '#ffffff' }}>{runningProfileIds.length}</span>
+              </div>
+
+              <div
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: 8,
+                  backgroundColor: '#161825',
+                  border: '1px solid #25293d',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 1,
+                }}
+              >
+                <span style={{ fontSize: 9, textTransform: 'uppercase', color: '#8890a5', fontWeight: 600, letterSpacing: '0.04em' }}>Proxies</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#38bdf8' }}>
+                  {profiles.filter((p) => p.proxy && p.proxy.enabled && p.proxy.host).length}
                 </span>
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <button
               disabled={!isAuthenticated}
               onClick={() => setShowImport(!showImport)}
@@ -851,17 +899,18 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
-                padding: '8px 14px',
-                backgroundColor: '#222533',
-                border: '1px solid #33384c',
+                gap: 5,
+                padding: '7px 12px',
+                backgroundColor: '#1c1f2e',
+                border: '1px solid #2e354a',
                 borderRadius: 8,
                 color: '#e2e4e9',
                 fontSize: 12,
                 cursor: 'pointer',
+                transition: 'all 0.15s ease',
               }}
             >
-              <Upload size={14} />
+              <Upload size={13} />
               Import
             </button>
 
@@ -872,17 +921,18 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
-                padding: '8px 14px',
-                backgroundColor: '#222533',
-                border: '1px solid #33384c',
+                gap: 5,
+                padding: '7px 12px',
+                backgroundColor: '#1c1f2e',
+                border: '1px solid #2e354a',
                 borderRadius: 8,
                 color: '#38bdf8',
                 fontSize: 12,
                 cursor: 'pointer',
+                transition: 'all 0.15s ease',
               }}
             >
-              <Layers size={14} />
+              <Layers size={13} />
               Bulk Create
             </button>
 
@@ -893,10 +943,10 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
-                padding: '8px 14px',
-                backgroundColor: updateStatus.status === 'available' ? '#047857' : updateStatus.status === 'downloaded' ? '#2563eb' : '#222533',
-                border: `1px solid ${updateStatus.status === 'available' ? '#10b981' : updateStatus.status === 'downloaded' ? '#3b82f6' : '#33384c'}`,
+                gap: 5,
+                padding: '7px 12px',
+                backgroundColor: updateStatus.status === 'available' ? '#047857' : updateStatus.status === 'downloaded' ? '#2563eb' : '#1c1f2e',
+                border: `1px solid ${updateStatus.status === 'available' ? '#10b981' : updateStatus.status === 'downloaded' ? '#3b82f6' : '#2e354a'}`,
                 borderRadius: 8,
                 color: updateStatus.status === 'available' ? '#34d399' : updateStatus.status === 'downloaded' ? '#60a5fa' : '#e2e4e9',
                 fontSize: 12,
@@ -905,13 +955,13 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
               }}
             >
               {checkingUpdate ? (
-                <Loader2 size={14} className="animate-spin" />
+                <Loader2 size={13} className="animate-spin" />
               ) : updateStatus.status === 'available' ? (
-                <ArrowDownCircle size={14} />
+                <ArrowDownCircle size={13} />
               ) : updateStatus.status === 'downloaded' ? (
-                <CheckCircle size={14} />
+                <CheckCircle size={13} />
               ) : (
-                <RefreshCw size={14} />
+                <RefreshCw size={13} />
               )}
               {checkingUpdate
                 ? 'Checking...'
@@ -931,19 +981,20 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
-                padding: '8px 18px',
+                gap: 5,
+                padding: '7px 16px',
                 backgroundColor: '#3b82f6',
                 border: 'none',
                 borderRadius: 8,
                 color: '#ffffff',
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: 600,
                 cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
+                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.28)',
+                transition: 'all 0.15s ease',
               }}
             >
-              <Plus size={16} />
+              <Plus size={15} />
               New Profile
             </button>
 
@@ -1081,59 +1132,83 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
         {/* Filter and Search Bar */}
         <div
           style={{
-            padding: '12px 24px',
-            borderBottom: '1px solid #232636',
-            backgroundColor: '#191b24',
+            padding: '14px 28px',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+            backgroundColor: 'rgba(21, 23, 34, 0.75)',
+            backdropFilter: 'blur(12px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 16,
+            flexWrap: 'wrap',
           }}
         >
+          {/* Search box with subtle glow */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
-              backgroundColor: '#12131b',
-              border: '1px solid #2d3144',
-              borderRadius: 8,
-              padding: '0 12px',
-              height: 36,
-              width: 320,
-              gap: 8,
+              backgroundColor: '#12141d',
+              border: '1px solid #282d42',
+              borderRadius: 10,
+              padding: '0 14px',
+              height: 38,
+              width: 340,
+              gap: 10,
+              boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.3)',
+              transition: 'border-color 0.2s, box-shadow 0.2s',
             }}
           >
-            <Search size={15} color="#8b92a2" />
+            <Search size={15} color="#64748b" />
             <input
               type="text"
-              placeholder="Search profiles by name, notes, or proxy..."
+              placeholder="Search profiles, notes, or proxy..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
                 flex: 1,
                 background: 'transparent',
                 border: 'none',
-                color: '#ffffff',
+                color: '#f8fafc',
                 fontSize: 13,
                 outline: 'none',
               }}
             />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#64748b',
+                  cursor: 'pointer',
+                  padding: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 12, color: '#8b92a2', marginRight: 2 }}>Folder:</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            {/* Folder Dropdown */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Folder:</span>
               <select
                 value={filterGroup}
                 onChange={(e) => setFilterGroup(e.target.value)}
                 style={{
-                  padding: '5px 8px',
-                  borderRadius: 6,
-                  border: '1px solid #33384c',
-                  backgroundColor: '#222533',
-                  color: '#ffffff',
-                  fontSize: 11,
+                  padding: '6px 12px',
+                  borderRadius: 8,
+                  border: '1px solid #282d42',
+                  backgroundColor: '#171926',
+                  color: '#e2e8f0',
+                  fontSize: 12,
+                  fontWeight: 500,
                   outline: 'none',
+                  cursor: 'pointer',
                 }}
               >
                 <option value="all">All Folders</option>
@@ -1143,48 +1218,84 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
               </select>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 12, color: '#8b92a2', marginRight: 2 }}>Browser:</span>
-              {(['all', 'chrome', 'edge', 'brave'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setFilterBrowser(mode)}
-                  style={{
-                    padding: '5px 10px',
-                    borderRadius: 6,
-                    border: 'none',
-                    fontSize: 11,
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    backgroundColor: filterBrowser === mode ? '#10b981' : '#222533',
-                    color: filterBrowser === mode ? '#ffffff' : '#9ba1b0',
-                  }}
-                >
-                  {mode === 'all' ? 'All Browsers' : mode === 'chrome' ? 'Chrome' : mode === 'edge' ? 'Edge' : 'Brave'}
-                </button>
-              ))}
+            {/* Browser Segmented Pills */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Browser:</span>
+              <div
+                style={{
+                  display: 'flex',
+                  backgroundColor: '#12141d',
+                  padding: 3,
+                  borderRadius: 8,
+                  border: '1px solid #262a3d',
+                  gap: 3,
+                }}
+              >
+                {(['all', 'chrome', 'edge', 'brave'] as const).map((mode) => {
+                  const isActive = filterBrowser === mode;
+                  return (
+                    <button
+                      key={mode}
+                      onClick={() => setFilterBrowser(mode)}
+                      style={{
+                        padding: '4px 11px',
+                        borderRadius: 6,
+                        border: 'none',
+                        fontSize: 11,
+                        fontWeight: isActive ? 600 : 500,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        backgroundColor: isActive
+                          ? mode === 'edge' ? '#0284c7' : mode === 'brave' ? '#ea580c' : mode === 'chrome' ? '#2563eb' : '#334155'
+                          : 'transparent',
+                        color: isActive ? '#ffffff' : '#94a3b8',
+                        boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.25)' : 'none',
+                      }}
+                    >
+                      {mode === 'all' ? 'All' : mode === 'chrome' ? 'Chrome' : mode === 'edge' ? 'Edge' : 'Brave'}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 12, color: '#8b92a2', marginRight: 2 }}>Platform:</span>
-              {(['all', 'mac', 'windows'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setFilterOS(mode)}
-                  style={{
-                    padding: '5px 10px',
-                    borderRadius: 6,
-                    border: 'none',
-                    fontSize: 11,
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    backgroundColor: filterOS === mode ? '#3b82f6' : '#222533',
-                    color: filterOS === mode ? '#ffffff' : '#9ba1b0',
-                  }}
-                >
-                  {mode === 'all' ? 'All OS' : mode === 'mac' ? 'macOS' : 'Windows'}
-                </button>
-              ))}
+            {/* Platform Segmented Pills */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>OS:</span>
+              <div
+                style={{
+                  display: 'flex',
+                  backgroundColor: '#12141d',
+                  padding: 3,
+                  borderRadius: 8,
+                  border: '1px solid #262a3d',
+                  gap: 3,
+                }}
+              >
+                {(['all', 'mac', 'windows'] as const).map((mode) => {
+                  const isActive = filterOS === mode;
+                  return (
+                    <button
+                      key={mode}
+                      onClick={() => setFilterOS(mode)}
+                      style={{
+                        padding: '4px 11px',
+                        borderRadius: 6,
+                        border: 'none',
+                        fontSize: 11,
+                        fontWeight: isActive ? 600 : 500,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        backgroundColor: isActive ? '#4f46e5' : 'transparent',
+                        color: isActive ? '#ffffff' : '#94a3b8',
+                        boxShadow: isActive ? '0 2px 8px rgba(79, 70, 229, 0.3)' : 'none',
+                      }}
+                    >
+                      {mode === 'all' ? 'All' : mode === 'mac' ? 'macOS' : 'Windows'}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
@@ -1193,18 +1304,30 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
         {selectedProfileIds.length > 0 && (
           <div
             style={{
-              padding: '10px 24px',
-              backgroundColor: '#1e2438',
-              borderBottom: '1px solid #333d60',
+              padding: '12px 28px',
+              backgroundColor: 'rgba(30, 41, 59, 0.85)',
+              backdropFilter: 'blur(10px)',
+              borderBottom: '1px solid rgba(59, 130, 246, 0.3)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
+              animation: 'fadeIn 0.2s ease',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 12, color: '#93c5fd', fontWeight: 600 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div
+                style={{
+                  padding: '3px 10px',
+                  borderRadius: 20,
+                  backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                  border: '1px solid rgba(59, 130, 246, 0.4)',
+                  color: '#93c5fd',
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
                 {selectedProfileIds.length} profiles selected
-              </span>
+              </div>
               <button
                 onClick={() => setSelectedProfileIds([])}
                 style={{
@@ -1216,25 +1339,26 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                   textDecoration: 'underline',
                 }}
               >
-                Clear selection
+                Deselect all
               </button>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <button
                 onClick={handleBulkLaunch}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 5,
-                  padding: '6px 12px',
+                  gap: 6,
+                  padding: '7px 14px',
                   backgroundColor: '#10b981',
                   border: 'none',
-                  borderRadius: 6,
+                  borderRadius: 7,
                   color: '#fff',
                   fontSize: 12,
                   fontWeight: 600,
                   cursor: 'pointer',
+                  boxShadow: '0 2px 10px rgba(16, 185, 129, 0.3)',
                 }}
               >
                 <Play size={12} fill="#fff" />
@@ -1246,15 +1370,16 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 5,
-                  padding: '6px 12px',
+                  gap: 6,
+                  padding: '7px 14px',
                   backgroundColor: '#f59e0b',
                   border: 'none',
-                  borderRadius: 6,
+                  borderRadius: 7,
                   color: '#fff',
                   fontSize: 12,
                   fontWeight: 600,
                   cursor: 'pointer',
+                  boxShadow: '0 2px 10px rgba(245, 158, 11, 0.25)',
                 }}
               >
                 <Square size={12} fill="#fff" />
@@ -1266,12 +1391,12 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 5,
-                  padding: '6px 12px',
-                  backgroundColor: '#ef4444',
-                  border: 'none',
-                  borderRadius: 6,
-                  color: '#fff',
+                  gap: 6,
+                  padding: '7px 14px',
+                  backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.4)',
+                  borderRadius: 7,
+                  color: '#f87171',
                   fontSize: 12,
                   fontWeight: 600,
                   cursor: 'pointer',
@@ -1324,26 +1449,40 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
           </div>
         )}
 
-        {/* Profiles Table View */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
+        {/* Profiles Table View with Responsive Horizontal Scroll */}
+        <div className="dashboard-table-container">
+          <table className="dashboard-table">
             <thead>
-              <tr style={{ borderBottom: '1px solid #232636', color: '#8b92a2', fontSize: 11, textTransform: 'uppercase' }}>
-                <th style={{ padding: '12px 16px', width: 40 }}>
+              <tr
+                style={{
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                  backgroundColor: '#12141e',
+                  color: '#64748b',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 10,
+                }}
+              >
+                <th style={{ padding: '14px 18px', width: 44 }}>
                   <input
                     type="checkbox"
                     checked={filteredProfiles.length > 0 && selectedProfileIds.length === filteredProfiles.length}
                     onChange={(e) => handleSelectAll(e.target.checked)}
+                    style={{ cursor: 'pointer', accentColor: '#3b82f6' }}
                   />
                 </th>
-                <th style={{ padding: '12px 16px' }}>Profile Name</th>
-                <th style={{ padding: '12px 16px' }}>Status</th>
-                <th style={{ padding: '12px 16px' }}>Folder</th>
-                <th style={{ padding: '12px 16px' }}>Browser Engine & Version</th>
-                <th style={{ padding: '12px 16px' }}>OS</th>
-                <th style={{ padding: '12px 16px' }}>Proxy</th>
-                <th style={{ padding: '12px 16px' }}>Privacy</th>
-                <th style={{ padding: '12px 24px', textAlign: 'right' }}>Actions</th>
+                <th style={{ padding: '14px 18px' }}>Profile Name</th>
+                <th style={{ padding: '14px 18px' }}>Status</th>
+                <th style={{ padding: '14px 18px' }}>Folder</th>
+                <th style={{ padding: '14px 18px' }}>Engine & Version</th>
+                <th style={{ padding: '14px 18px' }}>Platform</th>
+                <th style={{ padding: '14px 18px' }}>Proxy Tunnel</th>
+                <th style={{ padding: '14px 18px' }}>Privacy</th>
+                <th className="col-actions-header" style={{ padding: '14px 20px', textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -1359,56 +1498,99 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                   <tr
                     key={p.id}
                     style={{
-                      borderBottom: '1px solid #20222f',
+                      borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
                       transition: 'background 0.15s ease',
-                      backgroundColor: isRunning ? 'rgba(16, 185, 129, 0.04)' : isSelected ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
+                      backgroundColor: isRunning
+                        ? 'rgba(16, 185, 129, 0.05)'
+                        : isSelected
+                        ? 'rgba(59, 130, 246, 0.07)'
+                        : 'transparent',
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = isRunning ? 'rgba(16, 185, 129, 0.08)' : '#191b26')}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = isRunning ? 'rgba(16, 185, 129, 0.04)' : isSelected ? 'rgba(59, 130, 246, 0.08)' : 'transparent')}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = isRunning
+                        ? 'rgba(16, 185, 129, 0.09)'
+                        : isSelected
+                        ? 'rgba(59, 130, 246, 0.11)'
+                        : 'rgba(255, 255, 255, 0.025)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = isRunning
+                        ? 'rgba(16, 185, 129, 0.05)'
+                        : isSelected
+                        ? 'rgba(59, 130, 246, 0.07)'
+                        : 'transparent';
+                    }}
                   >
                     {/* Checkbox */}
-                    <td style={{ padding: '14px 16px' }}>
+                    <td style={{ padding: '14px 18px', width: 44 }}>
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => handleToggleSelect(p.id)}
+                        style={{ cursor: 'pointer', accentColor: '#3b82f6', width: 15, height: 15 }}
                       />
                     </td>
 
-                    {/* Name & Tag */}
-                    <td style={{ padding: '14px 16px' }}>
+                    {/* Profile Name & Tag */}
+                    <td style={{ padding: '14px 18px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        {/* Avatar Pill with Glowing Border */}
                         <div
                           style={{
-                            width: 12,
-                            height: 12,
-                            borderRadius: '50%',
-                            backgroundColor: p.color || '#3b82f6',
+                            width: 34,
+                            height: 34,
+                            borderRadius: 10,
+                            backgroundColor: `${p.color || '#3b82f6'}18`,
+                            border: `1.5px solid ${p.color || '#3b82f6'}55`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: `0 2px 8px ${p.color || '#3b82f6'}22`,
                             flexShrink: 0,
                           }}
-                        />
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontWeight: 600, color: '#ffffff', fontSize: 14 }}>
+                        >
+                          <User size={16} color={p.color || '#60a5fa'} />
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: 600, color: '#f8fafc', fontSize: 13, letterSpacing: '-0.01em' }}>
                               {p.name}
                             </span>
                             {p.isTemporary && (
                               <span
                                 style={{
-                                  fontSize: 10,
-                                  backgroundColor: '#ef4444',
-                                  color: '#fff',
+                                  fontSize: 9,
+                                  fontWeight: 700,
+                                  backgroundColor: 'rgba(239, 68, 68, 0.18)',
+                                  color: '#f87171',
+                                  border: '1px solid rgba(239, 68, 68, 0.35)',
                                   padding: '1px 5px',
                                   borderRadius: 4,
+                                  letterSpacing: '0.04em',
                                 }}
                               >
                                 TEMP
                               </span>
                             )}
                           </div>
-                          {(p as any).notes && (
-                            <div style={{ fontSize: 11, color: '#8b92a2', marginTop: 2 }}>
+                          {(p as any).notes ? (
+                            <div
+                              style={{
+                                fontSize: 11,
+                                color: '#64748b',
+                                marginTop: 2,
+                                maxWidth: 220,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                              title={(p as any).notes}
+                            >
                               {(p as any).notes}
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: 10, color: '#475569', marginTop: 1, fontFamily: 'monospace' }}>
+                              ID: {p.id.slice(0, 8)}
                             </div>
                           )}
                         </div>
@@ -1416,163 +1598,280 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                     </td>
 
                     {/* Status (Running vs Ready) */}
-                    <td style={{ padding: '14px 16px' }}>
+                    <td style={{ padding: '14px 18px' }}>
                       {isRunning ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 7,
+                            padding: '4px 10px',
+                            borderRadius: 20,
+                            backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                            border: '1px solid rgba(16, 185, 129, 0.35)',
+                            boxShadow: '0 0 12px rgba(16, 185, 129, 0.15)',
+                          }}
+                        >
                           <span
                             style={{
-                              width: 8,
-                              height: 8,
+                              width: 7,
+                              height: 7,
                               borderRadius: '50%',
                               backgroundColor: '#10b981',
                               boxShadow: '0 0 8px #10b981',
+                              display: 'inline-block',
                             }}
                           />
-                          <span style={{ color: '#10b981', fontWeight: 600, fontSize: 12 }}>
+                          <span style={{ color: '#34d399', fontWeight: 700, fontSize: 11, letterSpacing: '0.04em' }}>
                             RUNNING
                           </span>
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#6b7280' }} />
-                          <span style={{ color: '#8b92a2', fontSize: 12 }}>READY</span>
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '4px 10px',
+                            borderRadius: 20,
+                            backgroundColor: 'rgba(148, 163, 184, 0.07)',
+                            border: '1px solid rgba(148, 163, 184, 0.16)',
+                          }}
+                        >
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#64748b' }} />
+                          <span style={{ color: '#94a3b8', fontSize: 11, fontWeight: 500 }}>READY</span>
                         </div>
                       )}
                     </td>
 
                     {/* Folder */}
-                    <td style={{ padding: '14px 16px' }}>
-                      <span
+                    <td style={{ padding: '14px 18px' }}>
+                      <div
                         style={{
-                          fontSize: 11,
-                          backgroundColor: '#1e2433',
-                          color: '#93c5fd',
-                          padding: '3px 8px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          backgroundColor: '#161925',
+                          border: '1px solid #273046',
                           borderRadius: 6,
+                          padding: '3px 8px',
+                          color: '#93c5fd',
+                          fontSize: 11,
                           fontWeight: 500,
-                          border: '1px solid #2e3a59',
                         }}
                       >
-                        {(p as any).group || 'Default'}
-                      </span>
+                        <Folder size={12} color="#60a5fa" />
+                        <span>{(p as any).group || 'Default'}</span>
+                      </div>
                     </td>
 
-                    {/* Browser & Version */}
-                    <td style={{ padding: '14px 16px' }}>
+                    {/* Browser Engine & Version */}
+                    <td style={{ padding: '14px 18px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span
                           style={{
-                            fontSize: 11,
-                            backgroundColor: profileBrowser === 'edge' ? '#0284c7' : profileBrowser === 'brave' ? '#ea580c' : '#2563eb',
-                            color: '#ffffff',
-                            padding: '2px 7px',
-                            borderRadius: 4,
-                            fontWeight: 600,
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: 6,
                             textTransform: 'uppercase',
+                            letterSpacing: '0.04em',
+                            backgroundColor:
+                              profileBrowser === 'edge'
+                                ? 'rgba(2, 132, 199, 0.16)'
+                                : profileBrowser === 'brave'
+                                ? 'rgba(234, 88, 12, 0.16)'
+                                : 'rgba(37, 99, 235, 0.16)',
+                            color:
+                              profileBrowser === 'edge'
+                                ? '#38bdf8'
+                                : profileBrowser === 'brave'
+                                ? '#fb923c'
+                                : '#60a5fa',
+                            border: `1px solid ${
+                              profileBrowser === 'edge'
+                                ? 'rgba(2, 132, 199, 0.35)'
+                                : profileBrowser === 'brave'
+                                ? 'rgba(234, 88, 12, 0.35)'
+                                : 'rgba(37, 99, 235, 0.35)'
+                            }`,
                           }}
                         >
                           {profileBrowser}
                         </span>
-                        <span style={{ color: '#e2e4e9', fontSize: 12, fontFamily: 'monospace' }}>
+                        <span
+                          style={{
+                            color: '#94a3b8',
+                            fontSize: 12,
+                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                            backgroundColor: '#161824',
+                            padding: '2px 6px',
+                            borderRadius: 4,
+                            border: '1px solid #242838',
+                          }}
+                        >
                           v{profileVersion.split('.')[0]}
                         </span>
                       </div>
                     </td>
 
                     {/* OS Platform */}
-                    <td style={{ padding: '14px 16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#9ba1b0', fontSize: 12 }}>
-                        {profileOs === 'windows' ? <Monitor size={15} /> : <Apple size={15} />}
+                    <td style={{ padding: '14px 18px' }}>
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '3px 8px',
+                          borderRadius: 6,
+                          backgroundColor: '#161824',
+                          border: '1px solid #252a3b',
+                          color: '#cbd5e1',
+                          fontSize: 11,
+                          fontWeight: 500,
+                        }}
+                      >
+                        {profileOs === 'windows' ? (
+                          <Monitor size={13} color="#60a5fa" />
+                        ) : (
+                          <Apple size={13} color="#e2e8f0" />
+                        )}
                         <span>{profileOs === 'windows' ? 'Windows' : 'macOS'}</span>
                       </div>
                     </td>
 
-                    {/* Proxy & Rotate IP */}
-                    <td style={{ padding: '14px 16px' }}>
+                    {/* Proxy Tunnel & IP Rotation */}
+                    <td style={{ padding: '14px 18px' }}>
                       {hasProxy ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <div
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              padding: '3px 8px',
+                              borderRadius: 6,
+                              backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                              border: '1px solid rgba(16, 185, 129, 0.25)',
+                            }}
+                          >
                             <span
                               style={{
-                                fontSize: 11,
-                                backgroundColor: '#26293a',
+                                fontSize: 9,
+                                fontWeight: 700,
                                 color: '#34d399',
-                                padding: '2px 6px',
-                                borderRadius: 4,
-                                fontWeight: 500,
+                                letterSpacing: '0.04em',
                               }}
                             >
                               {p.proxy.mode.toUpperCase()}
                             </span>
-                            <span style={{ marginLeft: 6, color: '#e2e4e9', fontSize: 12 }}>
+                            <span
+                              style={{
+                                color: '#e2e8f0',
+                                fontSize: 11,
+                                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                              }}
+                            >
                               {p.proxy.host}:{p.proxy.port}
                             </span>
                           </div>
+
                           {(p.proxy as any).changeIpUrl && (
                             <button
                               onClick={() => handleRotateProxy(p.id, (p.proxy as any).changeIpUrl)}
                               disabled={rotatingProfileId === p.id}
                               style={{
-                                background: '#1e293b',
-                                border: '1px solid #334155',
-                                borderRadius: 5,
+                                background: '#171a27',
+                                border: '1px solid #2c364f',
+                                borderRadius: 6,
                                 color: '#38bdf8',
-                                padding: '3px 6px',
+                                padding: '4px 8px',
                                 cursor: 'pointer',
-                                display: 'flex',
+                                display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: 4,
-                                fontSize: 10,
+                                fontSize: 11,
+                                fontWeight: 500,
+                                transition: 'all 0.15s ease',
                               }}
                               title="Rotate IP (Change IP URL)"
                             >
                               {rotatingProfileId === p.id ? (
-                                <Loader2 size={11} className="animate-spin" />
+                                <Loader2 size={12} className="animate-spin" />
                               ) : (
-                                <RotateCw size={11} />
+                                <RotateCw size={12} />
                               )}
-                              Rotate
+                              <span>Rotate</span>
                             </button>
                           )}
                         </div>
                       ) : (
-                        <span style={{ color: '#8b92a2', fontSize: 12 }}>Direct (No Proxy)</span>
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            color: '#64748b',
+                            fontSize: 11,
+                          }}
+                        >
+                          <Wifi size={13} color="#475569" />
+                          <span>Direct Tunnel</span>
+                        </div>
                       )}
                     </td>
 
-                    {/* Privacy & WebRTC */}
-                    <td style={{ padding: '14px 16px' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <span style={{ fontSize: 12, color: '#e2e4e9' }}>
-                          Level: <strong style={{ color: '#38bdf8' }}>{p.privacyLevel.toUpperCase()}</strong>
-                        </span>
-                        <span style={{ fontSize: 11, color: '#8b92a2' }}>
-                          WebRTC: {p.webrtcPolicy === 'disable_non_proxied_udp' ? 'Strict UDP Kill' : 'Prevent LAN leak'}
+                    {/* Privacy & WebRTC Policy */}
+                    <td style={{ padding: '14px 18px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <Shield size={12} color="#38bdf8" />
+                          <span style={{ fontSize: 11, color: '#e2e8f0', fontWeight: 600 }}>
+                            {p.privacyLevel.toUpperCase()}
+                          </span>
+                        </div>
+                        <span
+                          style={{
+                            fontSize: 10,
+                            color: p.webrtcPolicy === 'disable_non_proxied_udp' ? '#34d399' : '#94a3b8',
+                            backgroundColor: '#161824',
+                            padding: '1px 5px',
+                            borderRadius: 4,
+                            border: '1px solid #232738',
+                            display: 'inline-block',
+                            width: 'fit-content',
+                          }}
+                        >
+                          {p.webrtcPolicy === 'disable_non_proxied_udp' ? 'Strict UDP Kill' : 'Prevent LAN leak'}
                         </span>
                       </div>
                     </td>
 
-                    {/* Actions */}
-                    <td style={{ padding: '14px 24px', textAlign: 'right' }}>
+                    {/* Actions Toolbar - Sticky on small screens */}
+                    <td className="col-actions-cell" style={{ padding: '12px 20px', textAlign: 'right' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                        {/* Primary Launch/Stop Action */}
                         {isRunning ? (
                           <button
                             onClick={() => handleStop(p.id)}
                             style={{
                               display: 'flex',
                               alignItems: 'center',
-                              gap: 6,
-                              padding: '6px 14px',
+                              gap: 5,
+                              padding: '6px 13px',
                               backgroundColor: '#ef4444',
                               border: 'none',
-                              borderRadius: 6,
+                              borderRadius: 7,
                               color: '#fff',
                               fontSize: 12,
                               fontWeight: 600,
                               cursor: 'pointer',
+                              boxShadow: '0 2px 10px rgba(239, 68, 68, 0.35)',
+                              transition: 'transform 0.1s ease',
+                              whiteSpace: 'nowrap',
                             }}
                           >
-                            <Square size={13} fill="#fff" />
+                            <Square size={11} fill="#fff" />
                             Stop
                           </button>
                         ) : (
@@ -1581,130 +1880,365 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                             style={{
                               display: 'flex',
                               alignItems: 'center',
-                              gap: 6,
-                              padding: '6px 16px',
+                              gap: 5,
+                              padding: '6px 14px',
                               backgroundColor: '#10b981',
                               border: 'none',
-                              borderRadius: 6,
+                              borderRadius: 7,
                               color: '#fff',
                               fontSize: 12,
                               fontWeight: 600,
                               cursor: 'pointer',
-                              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)',
+                              boxShadow: '0 2px 12px rgba(16, 185, 129, 0.35)',
+                              transition: 'transform 0.1s ease',
+                              whiteSpace: 'nowrap',
                             }}
                           >
-                            <Play size={13} fill="#fff" />
+                            <Play size={11} fill="#fff" />
                             Launch
                           </button>
                         )}
 
-                        <button
-                          onClick={() => handleOpenCookieModal(p)}
-                          style={{
-                            background: '#232634',
-                            border: '1px solid #32374b',
-                            borderRadius: 6,
-                            color: '#f59e0b',
-                            padding: 6,
-                            cursor: 'pointer',
-                          }}
-                          title="Manage Cookies (Import / Export)"
-                        >
-                          <Cookie size={14} />
-                        </button>
+                        {/* Desktop Toolbar (visible >= 1100px) */}
+                        <div className="actions-desktop-tools">
+                          <div style={{ width: 1, height: 18, backgroundColor: 'rgba(255, 255, 255, 0.08)', margin: '0 2px' }} />
 
-                        <button
-                          onClick={() => handleWarmUpProfile(p.id)}
-                          style={{
-                            background: '#232634',
-                            border: '1px solid #32374b',
-                            borderRadius: 6,
-                            color: '#f97316',
-                            padding: 6,
-                            cursor: 'pointer',
-                          }}
-                          title="Cookie Warming Bot (Seed history & cookies on popular domains)"
-                        >
-                          <Flame size={14} />
-                        </button>
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 3,
+                              backgroundColor: '#141622',
+                              padding: '3px 4px',
+                              borderRadius: 8,
+                              border: '1px solid #232738',
+                            }}
+                          >
+                            <button
+                              onClick={() => handleOpenCookieModal(p)}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                borderRadius: 6,
+                                color: '#f59e0b',
+                                padding: '5px 6px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                              }}
+                              title="Manage Cookies"
+                            >
+                              <Cookie size={14} />
+                            </button>
 
-                        <button
-                          onClick={() => handleQuickLeakTest(p.id)}
-                          style={{
-                            background: '#232634',
-                            border: '1px solid #32374b',
-                            borderRadius: 6,
-                            color: '#06b6d4',
-                            padding: 6,
-                            cursor: 'pointer',
-                          }}
-                          title="Quick IP & Fingerprint Leak Test (whoer.net / iphey.com)"
-                        >
-                          <Compass size={14} />
-                        </button>
+                            <button
+                              onClick={() => handleWarmUpProfile(p.id)}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                borderRadius: 6,
+                                color: '#f97316',
+                                padding: '5px 6px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                              }}
+                              title="Warming Bot"
+                            >
+                              <Flame size={14} />
+                            </button>
 
-                        <button
-                          disabled={!isAuthenticated}
-                          onClick={() => handleOpenEdit(p)}
-                          style={{
-                            background: '#232634',
-                            border: '1px solid #32374b',
-                            borderRadius: 6,
-                            color: '#9ba1b0',
-                            padding: 6,
-                            cursor: 'pointer',
-                          }}
-                          title="Edit Profile"
-                        >
-                          <Edit2 size={14} />
-                        </button>
+                            <button
+                              onClick={() => handleQuickLeakTest(p.id)}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                borderRadius: 6,
+                                color: '#06b6d4',
+                                padding: '5px 6px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                              }}
+                              title="Leak Test"
+                            >
+                              <Compass size={14} />
+                            </button>
 
-                        <button
-                          disabled={!isAuthenticated}
-                          onClick={() => handleDuplicate(p.id)}
-                          style={{
-                            background: '#232634',
-                            border: '1px solid #32374b',
-                            borderRadius: 6,
-                            color: '#9ba1b0',
-                            padding: 6,
-                            cursor: 'pointer',
-                          }}
-                          title="Clone Profile"
-                        >
-                          <Copy size={14} />
-                        </button>
+                            <button
+                              disabled={!isAuthenticated}
+                              onClick={() => handleOpenEdit(p)}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                borderRadius: 6,
+                                color: '#94a3b8',
+                                padding: '5px 6px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                              }}
+                              title="Edit Profile"
+                            >
+                              <Edit2 size={14} />
+                            </button>
 
-                        <button
-                          onClick={() => handleExport(p.id)}
-                          style={{
-                            background: '#232634',
-                            border: '1px solid #32374b',
-                            borderRadius: 6,
-                            color: '#9ba1b0',
-                            padding: 6,
-                            cursor: 'pointer',
-                          }}
-                          title="Export Profile"
-                        >
-                          <Download size={14} />
-                        </button>
+                            <button
+                              disabled={!isAuthenticated}
+                              onClick={() => handleDuplicate(p.id)}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                borderRadius: 6,
+                                color: '#94a3b8',
+                                padding: '5px 6px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                              }}
+                              title="Clone Profile"
+                            >
+                              <Copy size={14} />
+                            </button>
 
-                        <button
-                          disabled={!isAuthenticated}
-                          onClick={() => handleDelete(p.id)}
-                          style={{
-                            background: '#232634',
-                            border: '1px solid #32374b',
-                            borderRadius: 6,
-                            color: '#ef4444',
-                            padding: 6,
-                            cursor: 'pointer',
-                          }}
-                          title="Delete Profile"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                            <button
+                              onClick={() => handleExport(p.id)}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                borderRadius: 6,
+                                color: '#94a3b8',
+                                padding: '5px 6px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                              }}
+                              title="Export JSON"
+                            >
+                              <Download size={14} />
+                            </button>
+
+                            <button
+                              disabled={!isAuthenticated}
+                              onClick={() => handleDelete(p.id)}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                borderRadius: 6,
+                                color: '#ef4444',
+                                padding: '5px 6px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                              }}
+                              title="Delete Profile"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Mobile / Small Screen Compact Menu (< 1100px) */}
+                        <div className="actions-mobile-tools">
+                          <button
+                            onClick={() => setActiveActionMenuProfileId(activeActionMenuProfileId === p.id ? null : p.id)}
+                            style={{
+                              background: '#1c1f2e',
+                              border: '1px solid #2e354a',
+                              borderRadius: 7,
+                              color: '#cbd5e1',
+                              padding: '5px 8px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 2,
+                            }}
+                            title="More Actions"
+                          >
+                            <MoreVertical size={14} />
+                          </button>
+
+                          {activeActionMenuProfileId === p.id && (
+                            <div
+                              style={{
+                                position: 'absolute',
+                                right: 0,
+                                top: '100%',
+                                marginTop: 4,
+                                backgroundColor: '#181a26',
+                                border: '1px solid #2e3448',
+                                borderRadius: 8,
+                                padding: '6px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 2,
+                                zIndex: 100,
+                                minWidth: 150,
+                                boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                              }}
+                            >
+                              <button
+                                onClick={() => {
+                                  setActiveActionMenuProfileId(null);
+                                  handleOpenCookieModal(p);
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#f59e0b',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  padding: '6px 10px',
+                                  borderRadius: 5,
+                                  fontSize: 12,
+                                  cursor: 'pointer',
+                                  textAlign: 'left',
+                                }}
+                              >
+                                <Cookie size={13} /> Cookies
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setActiveActionMenuProfileId(null);
+                                  handleWarmUpProfile(p.id);
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#f97316',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  padding: '6px 10px',
+                                  borderRadius: 5,
+                                  fontSize: 12,
+                                  cursor: 'pointer',
+                                  textAlign: 'left',
+                                }}
+                              >
+                                <Flame size={13} /> Warming Bot
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setActiveActionMenuProfileId(null);
+                                  handleQuickLeakTest(p.id);
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#06b6d4',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  padding: '6px 10px',
+                                  borderRadius: 5,
+                                  fontSize: 12,
+                                  cursor: 'pointer',
+                                  textAlign: 'left',
+                                }}
+                              >
+                                <Compass size={13} /> Leak Test
+                              </button>
+
+                              <button
+                                disabled={!isAuthenticated}
+                                onClick={() => {
+                                  setActiveActionMenuProfileId(null);
+                                  handleOpenEdit(p);
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#94a3b8',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  padding: '6px 10px',
+                                  borderRadius: 5,
+                                  fontSize: 12,
+                                  cursor: 'pointer',
+                                  textAlign: 'left',
+                                }}
+                              >
+                                <Edit2 size={13} /> Edit Profile
+                              </button>
+
+                              <button
+                                disabled={!isAuthenticated}
+                                onClick={() => {
+                                  setActiveActionMenuProfileId(null);
+                                  handleDuplicate(p.id);
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#94a3b8',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  padding: '6px 10px',
+                                  borderRadius: 5,
+                                  fontSize: 12,
+                                  cursor: 'pointer',
+                                  textAlign: 'left',
+                                }}
+                              >
+                                <Copy size={13} /> Clone Profile
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setActiveActionMenuProfileId(null);
+                                  handleExport(p.id);
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#94a3b8',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  padding: '6px 10px',
+                                  borderRadius: 5,
+                                  fontSize: 12,
+                                  cursor: 'pointer',
+                                  textAlign: 'left',
+                                }}
+                              >
+                                <Download size={13} /> Export JSON
+                              </button>
+
+                              <button
+                                disabled={!isAuthenticated}
+                                onClick={() => {
+                                  setActiveActionMenuProfileId(null);
+                                  handleDelete(p.id);
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#ef4444',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  padding: '6px 10px',
+                                  borderRadius: 5,
+                                  fontSize: 12,
+                                  cursor: 'pointer',
+                                  textAlign: 'left',
+                                  borderTop: '1px solid rgba(255,255,255,0.06)',
+                                  marginTop: 4,
+                                  paddingTop: 6,
+                                }}
+                              >
+                                <Trash2 size={13} /> Delete Profile
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -1712,17 +2246,29 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
               })}
               {filteredProfiles.length === 0 && (
                 <tr>
-                  <td colSpan={9} style={{ padding: '60px 24px', textAlign: 'center', color: '#8b92a2' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                      <div style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: '#1f222e', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #2d3345' }}>
-                        <User size={24} color="#60a5fa" />
+                  <td colSpan={9} style={{ padding: '80px 24px', textAlign: 'center' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+                      <div
+                        style={{
+                          width: 56,
+                          height: 56,
+                          borderRadius: 16,
+                          background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(147, 51, 234, 0.1) 100%)',
+                          border: '1px solid rgba(59, 130, 246, 0.25)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)',
+                        }}
+                      >
+                        <User size={26} color="#60a5fa" />
                       </div>
                       <div>
-                        <div style={{ fontSize: 15, fontWeight: 600, color: '#e2e4e9', marginBottom: 4 }}>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: '#f8fafc', marginBottom: 4, letterSpacing: '-0.01em' }}>
                           {searchQuery || filterBrowser !== 'all' || filterOS !== 'all' ? 'No matching profiles found' : 'No profiles created yet'}
                         </div>
-                        <div style={{ fontSize: 12, color: '#9ba1b0' }}>
-                          {searchQuery || filterBrowser !== 'all' || filterOS !== 'all' ? 'Try adjusting your search query or filters.' : 'Click "New Profile" to create your first isolated browser profile.'}
+                        <div style={{ fontSize: 13, color: '#64748b', maxWidth: 360 }}>
+                          {searchQuery || filterBrowser !== 'all' || filterOS !== 'all' ? 'Try adjusting your search keywords, browser filter, or platform selection.' : 'Click "New Profile" to create your first isolated fingerprint profile.'}
                         </div>
                       </div>
                       {!searchQuery && filterBrowser === 'all' && filterOS === 'all' && (
@@ -1730,11 +2276,11 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                           disabled={!isAuthenticated}
                           onClick={handleOpenCreate}
                           style={{
-                            marginTop: 6,
+                            marginTop: 8,
                             display: 'flex',
                             alignItems: 'center',
                             gap: 6,
-                            padding: '8px 18px',
+                            padding: '9px 20px',
                             backgroundColor: '#3b82f6',
                             border: 'none',
                             borderRadius: 8,
