@@ -73,10 +73,7 @@ The configured targets produce an NSIS Setup `.exe` and ZIP archives for x64
 and ARM64 in `release/`. To build only a specific target and architecture:
 
 ```powershell
-npx electron-builder --win nsis --x64 --publish never
-npx electron-builder --win nsis --arm64 --publish never
-npx electron-builder --win zip --x64 --publish never
-npx electron-builder --win zip --arm64 --publish never
+npm run pack:win
 ```
 
 On macOS, Windows ZIP archives can be built without the NSIS installer:
@@ -105,3 +102,10 @@ to reduce Windows security warnings.
    broad public distribution.
 6. Distribute only the intended files from `release/`; do not distribute
    `.env.local`, signing credentials, or Firebase service-account keys.
+
+## Release
+```sh
+git add package.json package-lock.json electron-builder.yml
+git commit -m "chore: release v1.0.1"
+git push origin main
+```
