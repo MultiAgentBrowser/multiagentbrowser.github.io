@@ -29,6 +29,10 @@ import {
   Layers,
   Flame,
   Compass,
+  RefreshCw,
+  AlertCircle,
+  ArrowDownCircle,
+  CheckCircle,
 } from 'lucide-react';
 import { Profile, ProxyConfig, SavedProxy } from '../../security/ipc-contracts';
 import { getBrowserUserAgent } from '../../profiles/browser-definitions';
@@ -118,6 +122,25 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   const [bulkBrowser, setBulkBrowser] = useState<'chrome' | 'edge' | 'brave'>('chrome');
   const [bulkProxiesText, setBulkProxiesText] = useState('');
   const [isBulkCreating, setIsBulkCreating] = useState(false);
+
+  // Auto Updater State
+  const [updateStatus, setUpdateStatus] = useState<any>({ status: 'idle' });
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+
+  // Auto Updater listener
+  useEffect(() => {
+    if (window.browserAPI && (window.browserAPI as any).onUpdateStatusChanged) {
+      const unsub = (window.browserAPI as any).onUpdateStatusChanged((status: any) => {
+        setUpdateStatus(status);
+        if (status.status !== 'checking') {
+          setCheckingUpdate(false);
+        }
+      });
+      return () => {
+        if (unsub) unsub();
+      };
+    }
+  }, []);
 
   // Fetch running profiles
   useEffect(() => {
@@ -659,6 +682,39 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     onRefreshProfiles();
   };
 
+  const handleCheckUpdate = async () => {
+    if (!window.browserAPI || !(window.browserAPI as any).checkForUpdates) return;
+    setCheckingUpdate(true);
+    try {
+      const res = await (window.browserAPI as any).checkForUpdates();
+      if (!res.success && res.error) {
+        setUpdateStatus({ status: 'error', message: res.error });
+      }
+    } catch (e: any) {
+      setUpdateStatus({ status: 'error', message: e.message });
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
+
+  const handleDownloadUpdate = async () => {
+    if (!window.browserAPI || !(window.browserAPI as any).downloadUpdate) return;
+    try {
+      await (window.browserAPI as any).downloadUpdate();
+    } catch (e: any) {
+      setUpdateStatus({ status: 'error', message: e.message });
+    }
+  };
+
+  const handleInstallUpdate = async () => {
+    if (!window.browserAPI || !(window.browserAPI as any).installUpdate) return;
+    try {
+      await (window.browserAPI as any).installUpdate();
+    } catch (e: any) {
+      setUpdateStatus({ status: 'error', message: e.message });
+    }
+  };
+
   const handleTestProxy = async () => {
     if (!proxyHost.trim() || !window.browserAPI) return;
     setTestingProxy(true);
@@ -831,6 +887,44 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
             </button>
 
             <button
+              onClick={handleCheckUpdate}
+              disabled={checkingUpdate || updateStatus.status === 'downloading'}
+              title="Check for software updates"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 14px',
+                backgroundColor: updateStatus.status === 'available' ? '#047857' : updateStatus.status === 'downloaded' ? '#2563eb' : '#222533',
+                border: `1px solid ${updateStatus.status === 'available' ? '#10b981' : updateStatus.status === 'downloaded' ? '#3b82f6' : '#33384c'}`,
+                borderRadius: 8,
+                color: updateStatus.status === 'available' ? '#34d399' : updateStatus.status === 'downloaded' ? '#60a5fa' : '#e2e4e9',
+                fontSize: 12,
+                fontWeight: updateStatus.status === 'available' || updateStatus.status === 'downloaded' ? 600 : 400,
+                cursor: 'pointer',
+              }}
+            >
+              {checkingUpdate ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : updateStatus.status === 'available' ? (
+                <ArrowDownCircle size={14} />
+              ) : updateStatus.status === 'downloaded' ? (
+                <CheckCircle size={14} />
+              ) : (
+                <RefreshCw size={14} />
+              )}
+              {checkingUpdate
+                ? 'Checking...'
+                : updateStatus.status === 'available'
+                ? `Update v${updateStatus.version}`
+                : updateStatus.status === 'downloading'
+                ? `Downloading (${updateStatus.percent}%)`
+                : updateStatus.status === 'downloaded'
+                ? 'Install & Restart'
+                : 'Updates'}
+            </button>
+
+            <button
               disabled={!isAuthenticated}
               onClick={handleOpenCreate}
               title={!isAuthenticated ? 'Sign in to create profiles' : 'Create Profile'}
@@ -855,6 +949,134 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
 
           </div>
         </div>
+
+        {/* Update Notification Banner */}
+        {updateStatus.status !== 'idle' && (
+          <div
+            style={{
+              padding: '10px 24px',
+              backgroundColor:
+                updateStatus.status === 'downloaded'
+                  ? 'rgba(37, 99, 235, 0.15)'
+                  : updateStatus.status === 'available' || updateStatus.status === 'downloading'
+                  ? 'rgba(16, 185, 129, 0.15)'
+                  : updateStatus.status === 'error'
+                  ? 'rgba(239, 68, 68, 0.15)'
+                  : 'rgba(51, 65, 85, 0.25)',
+              borderBottom: `1px solid ${
+                updateStatus.status === 'downloaded'
+                  ? '#3b82f640'
+                  : updateStatus.status === 'available' || updateStatus.status === 'downloading'
+                  ? '#10b98140'
+                  : updateStatus.status === 'error'
+                  ? '#ef444440'
+                  : '#334155'
+              }`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+              {updateStatus.status === 'available' && (
+                <>
+                  <ArrowDownCircle size={15} color="#34d399" />
+                  <span style={{ color: '#ffffff', fontWeight: 600 }}>
+                    A new version (v{updateStatus.version}) is available!
+                  </span>
+                </>
+              )}
+              {updateStatus.status === 'downloading' && (
+                <>
+                  <Loader2 size={15} color="#34d399" className="animate-spin" />
+                  <span style={{ color: '#ffffff' }}>
+                    Downloading update: <strong>{updateStatus.percent}%</strong>
+                  </span>
+                </>
+              )}
+              {updateStatus.status === 'downloaded' && (
+                <>
+                  <CheckCircle size={15} color="#60a5fa" />
+                  <span style={{ color: '#ffffff', fontWeight: 600 }}>
+                    Update v{updateStatus.version} is ready to install!
+                  </span>
+                </>
+              )}
+              {updateStatus.status === 'not-available' && (
+                <>
+                  <CheckCircle size={15} color="#94a3b8" />
+                  <span style={{ color: '#cbd5e1' }}>
+                    Multi Agent is up to date (current latest version).
+                  </span>
+                </>
+              )}
+              {updateStatus.status === 'error' && (
+                <>
+                  <AlertCircle size={15} color="#f87171" />
+                  <span style={{ color: '#fca5a5' }}>
+                    Update check: {updateStatus.message}
+                  </span>
+                </>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {updateStatus.status === 'available' && (
+                <button
+                  type="button"
+                  onClick={handleDownloadUpdate}
+                  style={{
+                    padding: '5px 12px',
+                    backgroundColor: '#10b981',
+                    border: 'none',
+                    borderRadius: 6,
+                    color: '#ffffff',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Download Now
+                </button>
+              )}
+              {updateStatus.status === 'downloaded' && (
+                <button
+                  type="button"
+                  onClick={handleInstallUpdate}
+                  style={{
+                    padding: '5px 14px',
+                    backgroundColor: '#3b82f6',
+                    border: 'none',
+                    borderRadius: 6,
+                    color: '#ffffff',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)',
+                  }}
+                >
+                  Restart & Install
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setUpdateStatus({ status: 'idle' })}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  padding: 4,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+                title="Dismiss"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Filter and Search Bar */}
         <div

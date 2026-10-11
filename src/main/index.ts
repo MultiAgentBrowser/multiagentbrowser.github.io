@@ -40,17 +40,20 @@ function createMainWindow() {
 
   BrowserInstanceManager.setMainWindow(mainWindow);
   BrowserInstanceManager.setProfileManager(profileManager);
+  AppUpdaterManager.getInstance().setMainWindow(mainWindow);
 
   const uiPath = path.join(__dirname, '../ui/index.html');
   mainWindow.loadFile(uiPath);
 
   mainWindow.on('closed', () => {
+    AppUpdaterManager.getInstance().setMainWindow(null);
     mainWindow = null;
   });
 }
 
 import { BrowserWindowManager } from '../browser/window-manager';
 import { BrowserInstanceManager } from '../browser/instance-manager';
+import { AppUpdaterManager } from './updater-manager';
 
 function requireAuthenticatedUser(): string {
   if (!authenticatedUserId) {
@@ -252,6 +255,8 @@ function registerIpcHandlers() {
     return PermissionManager.resetPermissions(profileId);
   });
 
+  // Auto Updater Handlers
+  AppUpdaterManager.getInstance().registerIpcHandlers();
 }
 
 app.whenReady().then(() => {

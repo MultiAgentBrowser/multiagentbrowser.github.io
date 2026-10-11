@@ -66,6 +66,12 @@ const IPC_CHANNELS = {
 
   // Viewport Visibility
   VIEW_SET_VISIBILITY: 'view:set-visibility',
+
+  // Auto Updater
+  UPDATER_CHECK: 'updater:check',
+  UPDATER_DOWNLOAD: 'updater:download',
+  UPDATER_INSTALL: 'updater:install',
+  UPDATER_STATUS_CHANGED: 'updater:status-changed',
 } as const;
 
 const browserAPI = {
@@ -153,6 +159,19 @@ const browserAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.PROFILE_GET_SAVED_SESSION, { profileId }),
   saveSavedSession: (profileId: string, session: { cookies: any[]; openUrls: string[] }): Promise<boolean> =>
     ipcRenderer.invoke(IPC_CHANNELS.PROFILE_SET_SAVED_SESSION, { profileId, session }),
+
+  // Auto Updater
+  checkForUpdates: (): Promise<{ success: boolean; updateInfo?: any; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.UPDATER_CHECK),
+  downloadUpdate: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.UPDATER_DOWNLOAD),
+  installUpdate: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.UPDATER_INSTALL),
+  onUpdateStatusChanged: (callback: (status: any) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, status: any) => callback(status);
+    ipcRenderer.on(IPC_CHANNELS.UPDATER_STATUS_CHANGED, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.UPDATER_STATUS_CHANGED, handler);
+  },
 };
 
 export type BrowserAPI = typeof browserAPI;

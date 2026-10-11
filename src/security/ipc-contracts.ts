@@ -160,4 +160,10 @@ export const IPC_CHANNELS = {
 
   // Viewport Visibility
   VIEW_SET_VISIBILITY: 'view:set-visibility',
+
+  // Auto Updater
+  UPDATER_CHECK: 'updater:check',
+  UPDATER_DOWNLOAD: 'updater:download',
+  UPDATER_INSTALL: 'updater:install',
+  UPDATER_STATUS_CHANGED: 'updater:status-changed',
 } as const;
