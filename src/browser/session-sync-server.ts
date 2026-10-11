@@ -15,6 +15,7 @@ export class SessionSyncServer extends EventEmitter {
   private server: http.Server | null = null;
   private port: number = 0;
   private sessions: Map<string, ProfileSessionData> = new Map();
+  private activeHeartbeats: Map<string, number> = new Map();
 
   public static getInstance(): SessionSyncServer {
     if (!this.instance) {
@@ -43,6 +44,39 @@ export class SessionSyncServer extends EventEmitter {
 
         const url = new URL(req.url || '/', `http://${req.headers.host || '127.0.0.1'}`);
 
+        // Immediate window closed notification from browser extension
+        if (url.pathname === '/api/window-closed') {
+          let profileId = url.searchParams.get('profileId');
+          let body = '';
+          req.on('data', (chunk) => { body += chunk; });
+          req.on('end', () => {
+            try {
+              if (body) {
+                const parsed = JSON.parse(body);
+                if (parsed.profileId) profileId = parsed.profileId;
+              }
+            } catch {}
+            if (profileId) {
+              this.activeHeartbeats.delete(profileId);
+              this.emit('window-closed', profileId);
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true }));
+          });
+          return;
+        }
+
+        // Heartbeat endpoint
+        if (url.pathname === '/api/heartbeat') {
+          const profileId = url.searchParams.get('profileId');
+          if (profileId) {
+            this.activeHeartbeats.set(profileId, Date.now());
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+          return;
+        }
+
         if (req.method === 'GET' && url.pathname === '/api/session') {
           const profileId = url.searchParams.get('profileId');
           if (!profileId) {
@@ -51,6 +85,7 @@ export class SessionSyncServer extends EventEmitter {
             return;
           }
 
+          this.activeHeartbeats.set(profileId, Date.now());
           const session = this.getSession(profileId);
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify(session));
@@ -77,6 +112,7 @@ export class SessionSyncServer extends EventEmitter {
                 return;
               }
 
+              this.activeHeartbeats.set(profileId, Date.now());
               this.setSession(
                 profileId,
                 Array.isArray(cookies) ? cookies : [],
@@ -116,6 +152,14 @@ export class SessionSyncServer extends EventEmitter {
 
   public getPort(): number {
     return this.port;
+  }
+
+  public getLastHeartbeat(profileId: string): number | undefined {
+    return this.activeHeartbeats.get(profileId);
+  }
+
+  public clearHeartbeat(profileId: string): void {
+    this.activeHeartbeats.delete(profileId);
   }
 
   public setSession(profileId: string, cookies: any[], openUrls: string[]): void {

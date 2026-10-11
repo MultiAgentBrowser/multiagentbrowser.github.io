@@ -234,9 +234,14 @@ function registerIpcHandlers() {
     return SavedProxyStorage.delete(id);
   });
 
-  ipcMain.handle(IPC_CHANNELS.PROXY_LIST_FREE, async () => {
+  ipcMain.handle(IPC_CHANNELS.PROXY_LIST_FREE, async (_event, args?: { countryCode?: string }) => {
     const { FreeProxyService } = await import('../network/proxy/free-proxy-service');
-    return FreeProxyService.fetchFreeProxies();
+    return FreeProxyService.fetchFreeProxies(args?.countryCode);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.PROXY_GET_COUNTRIES, async () => {
+    const { FreeProxyService } = await import('../network/proxy/free-proxy-service');
+    return FreeProxyService.getCountries();
   });
 
   // Permission IPC handlers
@@ -263,6 +268,7 @@ app.whenReady().then(() => {
   AppPaths.getProfilesDir();
   registerIpcHandlers();
   BrowserInstanceManager.setProfileManager(profileManager);
+  BrowserInstanceManager.startWatchdog();
   createMainWindow();
 
   app.on('activate', () => {
@@ -270,6 +276,11 @@ app.whenReady().then(() => {
       createMainWindow();
     }
   });
+});
+
+app.on('before-quit', async () => {
+  BrowserInstanceManager.stopWatchdog();
+  await BrowserInstanceManager.stopAllProfiles();
 });
 
 app.on('window-all-closed', () => {

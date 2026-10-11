@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 import { BrowserWindow } from 'electron';
 import fs from 'fs';
 import path from 'path';
@@ -18,6 +18,10 @@ import { createSessionSyncExtension } from './session-sync-extension';
 export class BrowserInstanceManager {
   private static mainWindow: BrowserWindow | null = null;
   private static profileManager: ProfileManager | null = null;
+  private static activeInstances = new Map<string, number>(); // profileId -> pid
+  private static launchTimes = new Map<string, number>(); // profileId -> timestamp
+  private static watchdogTimer: NodeJS.Timeout | null = null;
+  private static isSyncServerListening = false;
 
   public static setMainWindow(win: BrowserWindow): void {
     this.mainWindow = win;
@@ -27,9 +31,135 @@ export class BrowserInstanceManager {
     this.profileManager = pm;
   }
 
+  /**
+   * Starts a background watchdog that continuously verifies browser process liveness.
+   * If a user closes Chrome (via close window, Cmd+Q, Alt+F4, or task kill),
+   * the profile automatically transitions to 'stopped' immediately.
+   */
+  public static startWatchdog(): void {
+    if (!this.isSyncServerListening) {
+      this.isSyncServerListening = true;
+      const syncServer = SessionSyncServer.getInstance();
+      syncServer.on('window-closed', async (profileId: string) => {
+        try {
+          await this.stopProfile(profileId);
+        } catch (err) {
+          console.error(`Failed to auto-stop profile ${profileId} on window close:`, err);
+        }
+      });
+    }
+
+    if (this.watchdogTimer) return;
+    this.watchdogTimer = setInterval(() => {
+      this.checkActiveInstances();
+    }, 800);
+  }
+
+  public static stopWatchdog(): void {
+    if (this.watchdogTimer) {
+      clearInterval(this.watchdogTimer);
+      this.watchdogTimer = null;
+    }
+  }
+
+  /**
+   * Checks whether a specific PID is actively running.
+   */
+  public static isPidAlive(pid: number): boolean {
+    if (!pid || pid <= 0) return false;
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch (err: any) {
+      return err.code === 'EPERM'; // Process exists but owned by other user
+    }
+  }
+
+  /**
+   * Scans all profiles and detects when a browser window was closed.
+   */
+  public static checkActiveInstances(): void {
+    let changed = false;
+    const allProfiles = this.profileManager?.listProfiles() || [];
+    const now = Date.now();
+
+    for (const profile of allProfiles) {
+      const isLocked = ProfileLock.isLocked(profile.id);
+      const ownerPid = ProfileLock.getOwnerPid(profile.id);
+      const trackedPid = this.activeInstances.get(profile.id);
+      const pid = trackedPid || ownerPid;
+      const launchedAt = this.launchTimes.get(profile.id) || 0;
+
+      if (pid) {
+        if (!this.isPidAlive(pid)) {
+          // Process exited! Auto-stop profile
+          this.activeInstances.delete(profile.id);
+          this.launchTimes.delete(profile.id);
+          SessionSyncServer.getInstance().clearHeartbeat(profile.id);
+          ProfileLock.release(profile.id, pid);
+          if (ProfileLock.isLocked(profile.id)) {
+            ProfileLock.release(profile.id);
+          }
+          this.profileManager?.updateProfileStatus(profile.id, 'stopped');
+
+          // Save final session
+          try {
+            const syncServer = SessionSyncServer.getInstance();
+            const finalSession = syncServer.getSession(profile.id);
+            syncServer.saveSessionToDisk(profile.id, finalSession.cookies, finalSession.openUrls);
+            if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+              this.mainWindow.webContents.send(IPC_CHANNELS.PROFILE_SESSION_EXITED, {
+                profileId: profile.id,
+                cookies: finalSession.cookies,
+                openUrls: finalSession.openUrls,
+              });
+            }
+          } catch {
+            // Non-blocking session capture
+          }
+          changed = true;
+        } else {
+          // If process PID is still technically alive (e.g. macOS dock background or lingering helper)
+          // but heartbeat from browser has ceased for > 7s after startup grace period,
+          // the browser window is closed. Auto-stop it!
+          const lastHeartbeat = SessionSyncServer.getInstance().getLastHeartbeat(profile.id);
+          if (launchedAt > 0 && now - launchedAt > 8000 && lastHeartbeat && now - lastHeartbeat > 7000) {
+            this.activeInstances.delete(profile.id);
+            this.launchTimes.delete(profile.id);
+            SessionSyncServer.getInstance().clearHeartbeat(profile.id);
+            ProfileLock.release(profile.id, pid);
+            if (ProfileLock.isLocked(profile.id)) {
+              ProfileLock.release(profile.id);
+            }
+            this.profileManager?.updateProfileStatus(profile.id, 'stopped');
+            try {
+              process.kill(pid, 'SIGTERM');
+            } catch {}
+            changed = true;
+          }
+        }
+      } else if (profile.status === 'running' && !isLocked) {
+        this.profileManager?.updateProfileStatus(profile.id, 'stopped');
+        this.activeInstances.delete(profile.id);
+        this.launchTimes.delete(profile.id);
+        SessionSyncServer.getInstance().clearHeartbeat(profile.id);
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      this.broadcastRunningProfiles();
+    }
+  }
+
   public static getRunningProfileIds(): string[] {
     return (this.profileManager?.listProfiles() || [])
-      .filter((profile) => ProfileLock.isLocked(profile.id))
+      .filter((profile) => {
+        const isLocked = ProfileLock.isLocked(profile.id);
+        const trackedPid = this.activeInstances.get(profile.id);
+        if (trackedPid && !this.isPidAlive(trackedPid)) return false;
+        return isLocked;
+      })
       .map((profile) => profile.id);
   }
 
@@ -43,6 +173,8 @@ export class BrowserInstanceManager {
   public static async launchProfile(
     profileId: string
   ): Promise<{ success: boolean; profileId: string; focused?: boolean }> {
+    this.startWatchdog();
+
     if (!this.profileManager?.getProfile(profileId)) {
       throw new Error(`Profile not found: ${profileId}`);
     }
@@ -155,12 +287,14 @@ export class BrowserInstanceManager {
       const child = spawn(executablePath, args, { detached: true, stdio: 'ignore' });
       return await new Promise((resolve, reject) => {
         child.once('error', (error) => {
+          this.activeInstances.delete(profileId);
           ProfileLock.release(profileId, child.pid || process.pid);
           this.profileManager?.updateProfileStatus(profileId, 'crashed');
           this.broadcastRunningProfiles();
           console.error(`Could not launch browser for profile ${profileId}:`, error);
           reject(error);
         });
+
         child.once('spawn', () => {
           if (!child.pid || !ProfileLock.transfer(profileId, process.pid, child.pid)) {
             child.kill();
@@ -170,21 +304,31 @@ export class BrowserInstanceManager {
             return;
           }
 
+          this.activeInstances.set(profileId, child.pid);
+          this.launchTimes.set(profileId, Date.now());
           child.unref();
           this.profileManager?.updateProfileStatus(profileId, 'running');
           this.broadcastRunningProfiles();
           resolve({ success: true, profileId });
         });
+
         child.once('exit', (code, signal) => {
-          const lockReleased = child.pid
-            ? ProfileLock.release(profileId, child.pid)
-            : ProfileLock.release(profileId);
-          if (lockReleased) {
-            this.profileManager?.updateProfileStatus(profileId, code === 0 || signal !== null ? 'stopped' : 'crashed');
-            if (profile.isTemporary) {
-              ProfileStorage.deleteProfileDirectory(profileId);
-            } else {
-              // Capture and broadcast latest cookies and open tabs for cloud sync
+          this.activeInstances.delete(profileId);
+          this.launchTimes.delete(profileId);
+          SessionSyncServer.getInstance().clearHeartbeat(profileId);
+          if (child.pid) {
+            ProfileLock.release(profileId, child.pid);
+          }
+          if (ProfileLock.isLocked(profileId)) {
+            ProfileLock.release(profileId);
+          }
+
+          this.profileManager?.updateProfileStatus(profileId, code === 0 || signal !== null ? 'stopped' : 'crashed');
+          if (profile.isTemporary) {
+            ProfileStorage.deleteProfileDirectory(profileId);
+          } else {
+            // Capture and broadcast latest cookies and open tabs for cloud sync
+            try {
               const finalSession = syncServer.getSession(profileId);
               syncServer.saveSessionToDisk(profileId, finalSession.cookies, finalSession.openUrls);
               if (this.mainWindow && !this.mainWindow.isDestroyed()) {
@@ -194,34 +338,65 @@ export class BrowserInstanceManager {
                   openUrls: finalSession.openUrls,
                 });
               }
+            } catch {
+              // Non-blocking session capture
             }
-            this.broadcastRunningProfiles();
           }
+          this.broadcastRunningProfiles();
+
           if (code !== 0 && signal === null) {
-            console.error(`Google Chrome exited unexpectedly for profile ${profileId} with code ${code}`);
+            console.error(`Google Chrome exited for profile ${profileId} with code ${code}`);
           }
         });
       });
     } catch (error) {
+      this.activeInstances.delete(profileId);
       ProfileLock.release(profileId);
       throw error;
     }
   }
 
   public static async stopProfile(profileId: string): Promise<boolean> {
-    const ownerPid = ProfileLock.getOwnerPid(profileId);
-    if (!ownerPid) return false;
+    const trackedPid = this.activeInstances.get(profileId);
+    const ownerPid = trackedPid || ProfileLock.getOwnerPid(profileId);
+    this.activeInstances.delete(profileId);
+    this.launchTimes.delete(profileId);
+    SessionSyncServer.getInstance().clearHeartbeat(profileId);
 
-    try {
-      process.kill(ownerPid, 'SIGTERM');
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
+    if (ownerPid) {
+      try {
+        process.kill(ownerPid, 'SIGTERM');
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
+      }
     }
 
-    const timeout = Date.now() + 2000;
+    const timeout = Date.now() + 1500;
     while (ProfileLock.isLocked(profileId) && Date.now() < timeout) {
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
-    return !ProfileLock.isLocked(profileId);
+
+    // Force release lock if still stuck
+    if (ProfileLock.isLocked(profileId)) {
+      ProfileLock.release(profileId, ownerPid || process.pid);
+      if (ProfileLock.isLocked(profileId)) {
+        ProfileLock.release(profileId);
+      }
+    }
+
+    this.profileManager?.updateProfileStatus(profileId, 'stopped');
+    this.broadcastRunningProfiles();
+    return true;
+  }
+
+  public static async stopAllProfiles(): Promise<void> {
+    const runningIds = this.getRunningProfileIds();
+    for (const id of runningIds) {
+      try {
+        await this.stopProfile(id);
+      } catch {
+        // Continue stopping remaining
+      }
+    }
   }
 }

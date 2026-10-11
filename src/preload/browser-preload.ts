@@ -51,6 +51,7 @@ const IPC_CHANNELS = {
   PROXY_SAVE: 'proxy:save',
   PROXY_DELETE_SAVED: 'proxy:delete-saved',
   PROXY_LIST_FREE: 'proxy:list-free',
+  PROXY_GET_COUNTRIES: 'proxy:get-countries',
 
   // Permissions
   PERMISSION_LIST: 'permission:list',
@@ -128,8 +129,10 @@ const browserAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.PROXY_SAVE, { proxy }),
   deleteSavedProxy: (id: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.PROXY_DELETE_SAVED, { id }),
-  listFreeProxies: () =>
-    ipcRenderer.invoke(IPC_CHANNELS.PROXY_LIST_FREE),
+  listFreeProxies: (options?: { countryCode?: string }) =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROXY_LIST_FREE, options),
+  getProxyCountries: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.PROXY_GET_COUNTRIES),
 
   // Permissions
   listPermissions: (profileId: string) =>

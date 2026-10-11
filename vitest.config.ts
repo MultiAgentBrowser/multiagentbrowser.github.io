@@ -7,6 +7,9 @@ export default defineConfig({
     environment: 'node',
     include: ['tests/**/*.test.ts'],
   },
+  css: {
+    postcss: false,
+  },
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),

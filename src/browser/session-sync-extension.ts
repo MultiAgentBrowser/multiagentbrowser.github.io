@@ -135,6 +135,17 @@ async function collectAndSync() {
   }
 }
 
+function notifyWindowClosed() {
+  try {
+    fetch(\`\${SERVER_URL}/api/window-closed?profileId=\${encodeURIComponent(PROFILE_ID)}\`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profileId: PROFILE_ID }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch (e) {}
+}
+
 function scheduleSync() {
   if (syncTimeout) clearTimeout(syncTimeout);
   syncTimeout = setTimeout(collectAndSync, 1000);
@@ -147,11 +158,38 @@ restoreSession().then(() => {
   chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     if (changeInfo.url) scheduleSync();
   });
-  chrome.tabs.onRemoved.addListener(scheduleSync);
+  chrome.tabs.onRemoved.addListener(async () => {
+    scheduleSync();
+    try {
+      const tabs = await chrome.tabs.query({});
+      if (!tabs || tabs.length === 0) {
+        notifyWindowClosed();
+      }
+    } catch (e) {}
+  });
   chrome.tabs.onCreated.addListener(scheduleSync);
 
-  // Periodic heartbeat sync every 5 seconds
-  setInterval(collectAndSync, 5000);
+  // Monitor window closing events
+  if (chrome.windows && chrome.windows.onRemoved) {
+    chrome.windows.onRemoved.addListener(async () => {
+      try {
+        const wins = await chrome.windows.getAll({});
+        if (!wins || wins.length === 0) {
+          notifyWindowClosed();
+        }
+      } catch (e) {}
+    });
+  }
+
+  // Handle extension / browser suspend (quitting)
+  if (chrome.runtime && chrome.runtime.onSuspend) {
+    chrome.runtime.onSuspend.addListener(() => {
+      notifyWindowClosed();
+    });
+  }
+
+  // Periodic heartbeat sync every 2.5 seconds
+  setInterval(collectAndSync, 2500);
 });
 `;
 
