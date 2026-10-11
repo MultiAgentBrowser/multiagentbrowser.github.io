@@ -1,11 +1,11 @@
-appId: com.privacybrowser.app
+appId: com.multiagent.app
 productName: Multi Agent
 directories:
   output: release
   buildResources: build
 publish:
   provider: github
-  owner: debashishroy
+  owner: thedeba
   repo: Multi-Agent
 files:
   - dist/**/*

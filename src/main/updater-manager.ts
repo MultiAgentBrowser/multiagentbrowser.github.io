@@ -83,9 +83,13 @@ export class AppUpdaterManager {
     });
 
     autoUpdater.on('error', (err: Error) => {
+      let msg = err.message || 'Unknown update error';
+      if (msg.includes('404') && (msg.includes('releases.atom') || msg.includes('latest.yml') || msg.includes('latest-mac.yml'))) {
+        msg = 'No update releases published yet or repository release is not found.';
+      }
       this.updateStatus({
         status: 'error',
-        message: err.message || 'Unknown update error',
+        message: msg,
       });
     });
   }

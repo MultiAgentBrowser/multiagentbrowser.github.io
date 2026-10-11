@@ -105,14 +105,15 @@ to reduce Windows security warnings.
 
 ## Release
 ```sh
+git tag v1.2.1
+git push origin v1.2.1
 
-git tag v1.1.0
-git push origin v1.1.0
-
-gh release create v1.1.0 \
-  "release/Multi Agent-1.1.0-arm64.dmg" \
-  "release/Multi Agent-1.1.0.dmg" \
-  "release/Multi Agent Setup 1.1.0.exe" \
-  --title "Multi Agent v1.1.0" \
-  --notes "Release v1.1.0: Updates and improvements."
+gh release create v1.2.0 \
+  "release/Multi Agent Setup 1.2.0.exe" \
+  "release/Multi Agent-1.2.0-arm64.dmg" \
+  "release/Multi Agent-1.2.0.dmg" \
+  "release/latest.yml" \
+  "release/latest-mac.yml" \
+  --title "Multi Agent v1.2.0" \
+  --notes "Release v1.2.0: Multi Agent Desktop Browser."
 ```
