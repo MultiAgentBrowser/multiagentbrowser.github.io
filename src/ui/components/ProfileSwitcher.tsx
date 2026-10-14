@@ -207,6 +207,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   const [proxyFilterProtocol, setProxyFilterProtocol] = useState<'all' | 'socks5' | 'http'>('all');
   const [proxySearchText, setProxySearchText] = useState<string>('');
   const [quickProxyInput, setQuickProxyInput] = useState<string>('');
+  const [proxySubTab, setProxySubTab] = useState<'manual' | 'free'>('manual');
 
   // Proxy test and rotation state
   const [testingProxy, setTestingProxy] = useState(false);
@@ -912,6 +913,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     setSelectedSavedProxyId('');
     setProxyTestResult(null);
     setQuickProxyInput('');
+    setProxySubTab('manual');
     setRemoteDebuggingPort('');
     setTags([]);
     setProfileCookiesContent('');
@@ -960,6 +962,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     } else {
       setQuickProxyInput('');
     }
+    setProxySubTab('manual');
     setProfileCookiesStatus('');
     loadCookiesForEditor(p.id, profileCookiesFormat);
     setIsCreateOpen(true);
@@ -3246,19 +3249,19 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                       gap: 18,
                     }}
                   >
-                    {/* Enable Proxy Master Toggle */}
+                    {/* Top Header: Network Connection Mode */}
                     <div
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        paddingBottom: 16,
+                        paddingBottom: 14,
                         borderBottom: '1px solid #252a3d',
                       }}
                     >
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: '#ffffff' }}>Dedicated Proxy Connection</span>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: '#ffffff' }}>Network & Proxy Setup</span>
                           {proxyEnabled && testingProxy && (
                             <span
                               style={{
@@ -3294,56 +3297,295 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                               }}
                             >
                               {proxyTestResult.success ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
-                              {proxyTestResult.success ? 'Connection Active' : 'Connection Failed'}
+                              {proxyTestResult.success ? 'Proxy Active' : 'Proxy Error'}
+                            </span>
+                          )}
+                          {!proxyEnabled && (
+                            <span
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                padding: '2px 9px',
+                                borderRadius: 12,
+                                backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                                color: '#60a5fa',
+                                border: '1px solid rgba(59, 130, 246, 0.3)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                              }}
+                            >
+                              <CheckCircle2 size={12} />
+                              Direct Active
                             </span>
                           )}
                         </div>
                         <div style={{ fontSize: 12, color: '#82899d', marginTop: 2 }}>
-                          Route all traffic through SOCKS5, HTTP, or a Live Free Hub proxy
+                          Choose direct native internet connection or tunnel traffic via proxy
                         </div>
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        {proxyEnabled && (
-                          <button
-                            type="button"
-                            onClick={handleTestProxy}
-                            disabled={testingProxy || !proxyHost.trim()}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6,
-                              padding: '6px 12px',
-                              backgroundColor: '#1e293b',
-                              border: '1px solid #334155',
-                              borderRadius: 7,
-                              color: '#38bdf8',
-                              fontSize: 12,
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            {testingProxy ? <Loader2 size={13} className="animate-spin" /> : <Wifi size={13} />}
-                            {testingProxy ? 'Checking...' : 'Test Connection'}
-                          </button>
-                        )}
-
-                        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: 8 }}>
-                          <input
-                            type="checkbox"
-                            checked={proxyEnabled}
-                            onChange={(e) => setProxyEnabled(e.target.checked)}
-                            style={{ width: 18, height: 18, accentColor: '#3b82f6', cursor: 'pointer' }}
-                          />
-                          <span style={{ fontSize: 13, fontWeight: 600, color: proxyEnabled ? '#60a5fa' : '#94a3b8' }}>
-                            {proxyEnabled ? 'Proxy Enabled' : 'Direct Connection'}
-                          </span>
-                        </label>
-                      </div>
+                      {proxyEnabled && (
+                        <button
+                          type="button"
+                          onClick={handleTestProxy}
+                          disabled={testingProxy || !proxyHost.trim()}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '6px 12px',
+                            backgroundColor: '#1e293b',
+                            border: '1px solid #334155',
+                            borderRadius: 7,
+                            color: '#38bdf8',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {testingProxy ? <Loader2 size={13} className="animate-spin" /> : <Wifi size={13} />}
+                          {testingProxy ? 'Checking...' : 'Test Connection'}
+                        </button>
+                      )}
                     </div>
+
+                    {/* TWO PRIMARY BUTTONS: Direct Connect & Proxy */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <button
+                        type="button"
+                        onClick={() => setProxyEnabled(false)}
+                        style={{
+                          padding: '13px 16px',
+                          borderRadius: 10,
+                          border: !proxyEnabled ? '2px solid #3b82f6' : '1px solid #283149',
+                          backgroundColor: !proxyEnabled ? 'rgba(59, 130, 246, 0.16)' : '#0e111a',
+                          color: !proxyEnabled ? '#ffffff' : '#94a3b8',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12,
+                          transition: 'all 0.15s ease',
+                          boxShadow: !proxyEnabled ? '0 0 16px rgba(59, 130, 246, 0.22)' : 'none',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 38,
+                            height: 38,
+                            borderRadius: 8,
+                            backgroundColor: !proxyEnabled ? '#2563eb' : '#1e2433',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#ffffff',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <Globe size={20} />
+                        </div>
+                        <div style={{ textAlign: 'left', flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13.5, fontWeight: 700, color: !proxyEnabled ? '#ffffff' : '#cbd5e1' }}>
+                            Direct Connect
+                          </div>
+                          <div style={{ fontSize: 11, color: !proxyEnabled ? '#93c5fd' : '#64748b', marginTop: 1 }}>
+                            No proxy · Native internet
+                          </div>
+                        </div>
+                        {!proxyEnabled && (
+                          <CheckCircle2 size={18} color="#60a5fa" style={{ flexShrink: 0 }} />
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProxyEnabled(true);
+                        }}
+                        style={{
+                          padding: '13px 16px',
+                          borderRadius: 10,
+                          border: proxyEnabled ? '2px solid #3b82f6' : '1px solid #283149',
+                          backgroundColor: proxyEnabled ? 'rgba(59, 130, 246, 0.16)' : '#0e111a',
+                          color: proxyEnabled ? '#ffffff' : '#94a3b8',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12,
+                          transition: 'all 0.15s ease',
+                          boxShadow: proxyEnabled ? '0 0 16px rgba(59, 130, 246, 0.22)' : 'none',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 38,
+                            height: 38,
+                            borderRadius: 8,
+                            backgroundColor: proxyEnabled ? '#2563eb' : '#1e2433',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#ffffff',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <Wifi size={20} />
+                        </div>
+                        <div style={{ textAlign: 'left', flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13.5, fontWeight: 700, color: proxyEnabled ? '#ffffff' : '#cbd5e1' }}>
+                            Proxy
+                          </div>
+                          <div style={{ fontSize: 11, color: proxyEnabled ? '#93c5fd' : '#64748b', marginTop: 1 }}>
+                            Tunnel via Manual or Free proxy
+                          </div>
+                        </div>
+                        {proxyEnabled && (
+                          <CheckCircle2 size={18} color="#60a5fa" style={{ flexShrink: 0 }} />
+                        )}
+                      </button>
+                    </div>
+
+                    {/* DIRECT CONNECT VIEW */}
+                    {!proxyEnabled && (
+                      <div
+                        style={{
+                          padding: '28px 20px',
+                          borderRadius: 12,
+                          backgroundColor: '#111422',
+                          border: '1px solid #283149',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          textAlign: 'center',
+                          gap: 12,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 52,
+                            height: 52,
+                            borderRadius: 14,
+                            backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                            border: '1px solid rgba(59, 130, 246, 0.25)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#60a5fa',
+                          }}
+                        >
+                          <Globe size={28} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 15, fontWeight: 700, color: '#f8fafc', marginBottom: 4 }}>
+                            Direct Internet Connection Active
+                          </div>
+                          <div style={{ fontSize: 12, color: '#94a3b8', maxWidth: 460, lineHeight: 1.6 }}>
+                            This profile connects directly using your local device network without proxy routing.
+                            Fingerprint protection, WebRTC privacy, and spoofed system characteristics remain fully active.
+                          </div>
+                        </div>
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '6px 14px',
+                            borderRadius: 20,
+                            backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                            border: '1px solid rgba(16, 185, 129, 0.3)',
+                            fontSize: 11.5,
+                            color: '#34d399',
+                            fontWeight: 600,
+                          }}
+                        >
+                          <CheckCircle2 size={13} />
+                          Direct Connection Ready · Maximum Speed
+                        </div>
+                      </div>
+                    )}
 
                     {proxyEnabled && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        {/* SECONDARY BUTTONS / SUB-TABS: MANUAL & FREE */}
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            padding: 4,
+                            backgroundColor: '#0c0f17',
+                            borderRadius: 8,
+                            border: '1px solid #23293d',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setProxySubTab('manual')}
+                            style={{
+                              flex: 1,
+                              padding: '9px 16px',
+                              borderRadius: 6,
+                              border: 'none',
+                              backgroundColor: proxySubTab === 'manual' ? '#2563eb' : 'transparent',
+                              color: proxySubTab === 'manual' ? '#ffffff' : '#94a3b8',
+                              fontSize: 12.5,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 7,
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <Zap size={14} color={proxySubTab === 'manual' ? '#ffffff' : '#94a3b8'} />
+                            <span>Manual Proxy</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setProxySubTab('free');
+                              if (freeProxies.length === 0) {
+                                handleRefreshFreeProxies();
+                              }
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: '9px 16px',
+                              borderRadius: 6,
+                              border: 'none',
+                              backgroundColor: proxySubTab === 'free' ? '#059669' : 'transparent',
+                              color: proxySubTab === 'free' ? '#ffffff' : '#94a3b8',
+                              fontSize: 12.5,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 7,
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <Globe size={14} color={proxySubTab === 'free' ? '#ffffff' : '#94a3b8'} />
+                            <span>Free Proxies</span>
+                            {freeProxies.length > 0 && (
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  padding: '1px 6px',
+                                  borderRadius: 10,
+                                  backgroundColor: proxySubTab === 'free' ? 'rgba(255,255,255,0.25)' : 'rgba(5, 150, 105, 0.25)',
+                                  color: proxySubTab === 'free' ? '#ffffff' : '#34d399',
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {freeProxies.length}
+                              </span>
+                            )}
+                          </button>
+                        </div>
                         {/* TOP PROMINENT CONNECTION STATUS BANNER */}
                         {(testingProxy || proxyTestResult) && (
                           <div
@@ -3454,10 +3696,11 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                           </div>
                         )}
                         {/* 1. Free Proxy Hub Panel with Country Selector */}
-                        <div
-                          style={{
-                            padding: 14,
-                            borderRadius: 10,
+                        {proxySubTab === 'free' && (
+                          <div
+                            style={{
+                              padding: 14,
+                              borderRadius: 10,
                             backgroundColor: 'rgba(16, 185, 129, 0.05)',
                             border: '1px solid rgba(16, 185, 129, 0.3)',
                             display: 'flex',
@@ -3842,8 +4085,11 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                             );
                           })()}
                         </div>
+                        )}
 
-                        {/* 2. Reusable Saved Proxy Pool */}
+                        {/* 2. MANUAL PROXY SUB-TAB */}
+                        {proxySubTab === 'manual' && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                         {savedProxies.length > 0 && (
                           <div
                             style={{
@@ -4278,7 +4524,8 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                             </button>
                           </div>
                         </div>
-
+                      </div>
+                    )}
 
                       </div>
                     )}
