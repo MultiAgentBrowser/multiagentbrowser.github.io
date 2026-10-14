@@ -8,6 +8,7 @@ export interface ProxyTestResult {
   country?: string;
   city?: string;
   timezone?: string;
+  detectedMode?: 'socks5' | 'http' | 'https' | 'direct';
   error?: string;
 }
 
@@ -20,7 +21,8 @@ export interface ProxyRotateResult {
 export class ProxyTester {
   /**
    * Performs an actual protocol handshake (SOCKS5 RFC 1928 or HTTP CONNECT)
-   * to verify that the proxy can actually tunnel web traffic to the internet.
+   * to verify that the proxy can actually tunnel web traffic to the internet,
+   * and queries the external exit IP through the established tunnel.
    */
   public static verifyTunnel(
     host: string,
@@ -28,8 +30,8 @@ export class ProxyTester {
     mode: 'socks5' | 'http' | 'https' | 'direct',
     username?: string,
     password?: string,
-    timeoutMs = 4000
-  ): Promise<{ success: boolean; latencyMs?: number; error?: string }> {
+    timeoutMs = 4500
+  ): Promise<{ success: boolean; latencyMs?: number; exitIp?: string; error?: string }> {
     if (mode === 'direct') {
       return Promise.resolve({ success: true, latencyMs: 0 });
     }
@@ -38,11 +40,14 @@ export class ProxyTester {
       const startTime = Date.now();
       const socket = new net.Socket();
       let finished = false;
+      let latencyMs = 0;
+      let exitIp: string | undefined;
+
       const hardTimer = setTimeout(() => {
         finish({ success: false, error: `Connection timed out after ${timeoutMs}ms` });
       }, timeoutMs);
 
-      const finish = (result: { success: boolean; latencyMs?: number; error?: string }) => {
+      const finish = (result: { success: boolean; latencyMs?: number; exitIp?: string; error?: string }) => {
         if (!finished) {
           finished = true;
           clearTimeout(hardTimer);
@@ -53,6 +58,18 @@ export class ProxyTester {
 
       const isSocks = mode === 'socks5';
       let step = 0;
+
+      const tryFetchExitIp = () => {
+        latencyMs = Date.now() - startTime;
+        try {
+          socket.write('GET / HTTP/1.1\r\nHost: api.ipify.org\r\nConnection: close\r\n\r\n');
+        } catch {
+          finish({ success: true, latencyMs });
+        }
+        setTimeout(() => {
+          finish({ success: true, latencyMs, exitIp });
+        }, 1200);
+      };
 
       socket.on('connect', () => {
         if (isSocks) {
@@ -66,11 +83,11 @@ export class ProxyTester {
           }
           step = 1;
         } else {
-          // HTTP CONNECT request to 1.1.1.1:80
+          // HTTP CONNECT request to api.ipify.org:80
           const authHeader = username && password
             ? `Proxy-Authorization: Basic ${Buffer.from(`${username}:${password}`).toString('base64')}\r\n`
             : '';
-          const req = `CONNECT 1.1.1.1:80 HTTP/1.1\r\nHost: 1.1.1.1:80\r\nProxy-Connection: keep-alive\r\n${authHeader}\r\n`;
+          const req = `CONNECT api.ipify.org:80 HTTP/1.1\r\nHost: api.ipify.org:80\r\nProxy-Connection: keep-alive\r\n${authHeader}\r\n`;
           socket.write(req);
           step = 1;
         }
@@ -100,17 +117,26 @@ export class ProxyTester {
               step = 2;
               return;
             }
-            // Method 0x00 accepted. Send SOCKS5 CONNECT to 1.1.1.1:80
-            // [0x05, 0x01 (CONNECT), 0x00 (RSV), 0x01 (IPv4), 1, 1, 1, 1, 0x00, 0x50 (port 80)]
-            socket.write(Buffer.from([0x05, 0x01, 0x00, 0x01, 1, 1, 1, 1, 0x00, 0x50]));
+            // Method 0x00 accepted. Send SOCKS5 CONNECT to api.ipify.org:80 (type 0x03 domain)
+            const dBuf = Buffer.from('api.ipify.org');
+            socket.write(Buffer.concat([
+              Buffer.from([0x05, 0x01, 0x00, 0x03, dBuf.length]),
+              dBuf,
+              Buffer.from([0x00, 0x50]),
+            ]));
             step = 3;
           } else if (step === 2) {
             // Auth reply [0x01, status]
             if (chunk.length < 2 || chunk[1] !== 0x00) {
               return finish({ success: false, error: 'SOCKS5 proxy authentication failed: invalid credentials' });
             }
-            // Auth success, send CONNECT
-            socket.write(Buffer.from([0x05, 0x01, 0x00, 0x01, 1, 1, 1, 1, 0x00, 0x50]));
+            // Auth success, send CONNECT to api.ipify.org:80
+            const dBuf = Buffer.from('api.ipify.org');
+            socket.write(Buffer.concat([
+              Buffer.from([0x05, 0x01, 0x00, 0x03, dBuf.length]),
+              dBuf,
+              Buffer.from([0x00, 0x50]),
+            ]));
             step = 3;
           } else if (step === 3) {
             // CONNECT reply [0x05, rep, 0x00, ...]
@@ -134,27 +160,46 @@ export class ProxyTester {
                 error: `SOCKS5 tunnel refused: ${messages[rep] || `Status code 0x${rep.toString(16)}`}`,
               });
             }
-            // SOCKS5 tunnel is verified and accepted
-            const latencyMs = Date.now() - startTime;
-            return finish({ success: true, latencyMs });
+            // SOCKS5 tunnel verified!
+            step = 4;
+            tryFetchExitIp();
+          } else if (step === 4) {
+            const str = chunk.toString('utf-8');
+            const ipMatch = str.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/);
+            if (ipMatch) {
+              exitIp = ipMatch[0];
+            }
+            finish({ success: true, latencyMs, exitIp });
           }
         } else {
           // HTTP / HTTPS Proxy response
-          const latencyMs = Date.now() - startTime;
-          const text = chunk.toString('utf-8');
-          if (text.startsWith('HTTP/1.1 200') || text.startsWith('HTTP/1.0 200') || text.includes('200 Connection established')) {
-            return finish({ success: true, latencyMs });
+          if (step === 1) {
+            const text = chunk.toString('utf-8');
+            if (text.startsWith('HTTP/1.1 200') || text.startsWith('HTTP/1.0 200') || text.includes('200 Connection established') || text.includes('200 OK')) {
+              step = 2;
+              tryFetchExitIp();
+              return;
+            }
+            if (text.startsWith('HTTP/1.1 407') || text.startsWith('HTTP/1.0 407')) {
+              return finish({ success: false, error: 'HTTP proxy requires authentication (407) - invalid credentials' });
+            }
+            if (text.startsWith('HTTP/1.1 403') || text.startsWith('HTTP/1.1 502') || text.startsWith('HTTP/1.1 504')) {
+              return finish({ success: false, error: `HTTP proxy refused tunnel (${text.slice(0, 40).trim()})` });
+            }
+            if (text.startsWith('HTTP/')) {
+              step = 2;
+              tryFetchExitIp();
+              return;
+            }
+            return finish({ success: false, error: 'Unexpected response from HTTP proxy' });
+          } else if (step === 2) {
+            const str = chunk.toString('utf-8');
+            const ipMatch = str.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/);
+            if (ipMatch) {
+              exitIp = ipMatch[0];
+            }
+            finish({ success: true, latencyMs, exitIp });
           }
-          if (text.startsWith('HTTP/1.1 407') || text.startsWith('HTTP/1.0 407')) {
-            return finish({ success: false, error: 'HTTP proxy requires authentication (407)' });
-          }
-          if (text.startsWith('HTTP/1.1 403') || text.startsWith('HTTP/1.1 502') || text.startsWith('HTTP/1.1 504')) {
-            return finish({ success: false, error: `HTTP proxy refused tunnel (${text.slice(0, 30).trim()})` });
-          }
-          if (text.startsWith('HTTP/')) {
-            return finish({ success: true, latencyMs });
-          }
-          return finish({ success: false, error: 'Unexpected response from HTTP proxy' });
         }
       });
 
@@ -191,7 +236,7 @@ export class ProxyTester {
     const mode = config.mode || 'socks5';
 
     // Step 1: Real protocol handshake and tunnel verification
-    const tunnelResult = await this.verifyTunnel(
+    let tunnelResult = await this.verifyTunnel(
       host,
       port,
       mode,
@@ -199,6 +244,25 @@ export class ProxyTester {
       config.password,
       timeoutMs
     );
+
+    let detectedMode = mode;
+
+    // If initial mode failed, try alternative protocol (HTTP <-> SOCKS5)
+    if (!tunnelResult.success) {
+      const altMode = mode === 'socks5' ? 'http' : 'socks5';
+      const altResult = await this.verifyTunnel(
+        host,
+        port,
+        altMode,
+        config.username,
+        config.password,
+        timeoutMs
+      );
+      if (altResult.success) {
+        tunnelResult = altResult;
+        detectedMode = altMode;
+      }
+    }
 
     if (!tunnelResult.success) {
       return {
@@ -213,12 +277,13 @@ export class ProxyTester {
     let country: string | undefined;
     let city: string | undefined;
     let timezone: string | undefined;
+    const lookupIp = tunnelResult.exitIp || (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(host) ? host : undefined);
 
-    if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(host)) {
+    if (lookupIp) {
       try {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 1800);
-        const geoRes = await fetch(`https://ipwho.is/${host}`, { signal: controller.signal });
+        const geoRes = await fetch(`https://ipwho.is/${lookupIp}`, { signal: controller.signal });
         clearTimeout(timer);
         if (geoRes.ok) {
           const data = await geoRes.json();
@@ -236,10 +301,11 @@ export class ProxyTester {
     return {
       success: true,
       latencyMs: tunnelResult.latencyMs,
-      ip: host,
+      ip: tunnelResult.exitIp || host,
       country,
       city,
       timezone,
+      detectedMode,
     };
   }
 

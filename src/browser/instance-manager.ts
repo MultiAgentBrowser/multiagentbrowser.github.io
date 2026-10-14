@@ -9,6 +9,7 @@ import { getBrowserExecutable, getChromeExecutable } from './chrome-launcher';
 import { createProxyAuthExtension } from './proxy-extension';
 import { AppPaths } from '../platform/paths';
 import { ProxyManager } from '../network/proxy/proxy-manager';
+import { ProxyBridge } from '../network/proxy/proxy-bridge';
 import { getEffectiveUserAgent } from '../profiles/browser-definitions';
 import { ProfileStorage } from '../profiles/profile-storage';
 import { createFingerprintProtectionExtension } from '../privacy/fingerprint/fingerprint-extension';
@@ -190,7 +191,18 @@ export class BrowserInstanceManager {
       const syncServer = SessionSyncServer.getInstance();
       const syncPort = await syncServer.start();
 
-      const proxyRules = ProxyManager.buildProxyRules(profile.proxy);
+      let proxyRules = ProxyManager.buildProxyRules(profile.proxy);
+
+      // If proxy authentication credentials are provided, start local transparent ProxyBridge
+      // to completely eliminate native Chromium authentication login dialogs
+      if (profile.proxy.enabled && profile.proxy.host && profile.proxy.username && profile.proxy.password) {
+        try {
+          const bridgePort = await ProxyBridge.startBridge(profileId, profile.proxy);
+          proxyRules = `http://127.0.0.1:${bridgePort}`;
+        } catch (err) {
+          console.error(`Failed to start ProxyBridge for profile ${profileId}, falling back to direct:`, err);
+        }
+      }
 
       // Resolve Proxy IP Geo & Timezone for auto-matching (if enabled)
       let proxyGeo: { timezone?: string; latitude?: number; longitude?: number } | undefined;
@@ -340,6 +352,7 @@ export class BrowserInstanceManager {
       return await new Promise((resolve, reject) => {
         child.once('error', (error) => {
           this.activeInstances.delete(profileId);
+          ProxyBridge.stopBridge(profileId);
           ProfileLock.release(profileId, child.pid || process.pid);
           this.profileManager?.updateProfileStatus(profileId, 'crashed');
           this.broadcastRunningProfiles();
@@ -367,6 +380,7 @@ export class BrowserInstanceManager {
         child.once('exit', (code, signal) => {
           this.activeInstances.delete(profileId);
           this.launchTimes.delete(profileId);
+          ProxyBridge.stopBridge(profileId);
           SessionSyncServer.getInstance().clearHeartbeat(profileId);
           if (child.pid) {
             ProfileLock.release(profileId, child.pid);
@@ -403,6 +417,7 @@ export class BrowserInstanceManager {
       });
     } catch (error) {
       this.activeInstances.delete(profileId);
+      ProxyBridge.stopBridge(profileId);
       ProfileLock.release(profileId);
       throw error;
     }
@@ -413,6 +428,7 @@ export class BrowserInstanceManager {
     const ownerPid = trackedPid || ProfileLock.getOwnerPid(profileId);
     this.activeInstances.delete(profileId);
     this.launchTimes.delete(profileId);
+    ProxyBridge.stopBridge(profileId);
     SessionSyncServer.getInstance().clearHeartbeat(profileId);
 
     if (ownerPid) {
@@ -442,6 +458,7 @@ export class BrowserInstanceManager {
   }
 
   public static async stopAllProfiles(): Promise<void> {
+    ProxyBridge.stopAll();
     const runningIds = this.getRunningProfileIds();
     for (const id of runningIds) {
       try {

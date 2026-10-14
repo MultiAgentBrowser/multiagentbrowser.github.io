@@ -43,6 +43,103 @@ import { Profile, ProxyConfig, SavedProxy } from '../../security/ipc-contracts';
 import { getBrowserUserAgent } from '../../profiles/browser-definitions';
 import { SUPPORTED_PROXY_COUNTRIES, ProxyCountry } from '../../network/proxy/proxy-countries';
 
+export interface ParsedProxyInfo {
+  host: string;
+  port: number;
+  username?: string;
+  password?: string;
+  mode?: 'socks5' | 'http' | 'https';
+  changeIpUrl?: string;
+}
+
+export function parseProxyString(raw: string): ParsedProxyInfo | null {
+  if (!raw) return null;
+  let text = raw.trim();
+  if (!text) return null;
+
+  let mode: 'socks5' | 'http' | 'https' | undefined;
+  let changeIpUrl: string | undefined;
+
+  // 1. Protocol prefix: socks5://, http://, https://
+  const protoMatch = text.match(/^(socks5|socks4|http|https):\/\//i);
+  if (protoMatch) {
+    const proto = protoMatch[1].toLowerCase();
+    mode = proto === 'https' ? 'https' : proto.startsWith('socks') ? 'socks5' : 'http';
+    text = text.slice(protoMatch[0].length);
+  }
+
+  // 2. Format: user:pass@host:port
+  if (text.includes('@')) {
+    const atIdx = text.lastIndexOf('@');
+    const authPart = text.slice(0, atIdx);
+    const hostPortPart = text.slice(atIdx + 1);
+    const authParts = authPart.split(':');
+    const hostPortParts = hostPortPart.split(':');
+    const host = hostPortParts[0]?.trim();
+    const port = Number(hostPortParts[1]) || 8080;
+    const username = authParts[0]?.trim() || undefined;
+    const password = authParts[1]?.trim() || undefined;
+    if (host && port) {
+      return { host, port, username, password, mode, changeIpUrl };
+    }
+  }
+
+  const parts = text.split(':');
+
+  // Check if first part is protocol name without slashes: http:host:port:user:pass
+  if (['http', 'https', 'socks5', 'socks4'].includes(parts[0]?.toLowerCase())) {
+    mode = parts[0].toLowerCase().startsWith('socks') ? 'socks5' : parts[0].toLowerCase() === 'https' ? 'https' : 'http';
+    parts.shift();
+  }
+
+  // Format A: host:port:username:password[:extra] (e.g. gw.dataimpulse.com:10000:user:pass:9050)
+  const port1 = parseInt(parts[1]?.trim(), 10);
+  if (!isNaN(port1) && port1 > 0 && port1 <= 65535 && parts[0]?.includes('.')) {
+    const host = parts[0].trim();
+    const port = port1;
+    const username = parts[2] ? parts[2].trim() : undefined;
+    const password = parts[3] ? parts[3].trim() : undefined;
+    if (parts[4]) {
+      const extra = parts.slice(4).join(':').trim();
+      if (extra.startsWith('http://') || extra.startsWith('https://')) {
+        changeIpUrl = extra;
+      }
+    }
+    return { host, port, username, password, mode, changeIpUrl };
+  }
+
+  // Format B: username:password:host:port[:extra]
+  if (parts.length >= 4) {
+    const port3 = parseInt(parts[3]?.trim(), 10);
+    if (!isNaN(port3) && port3 > 0 && port3 <= 65535 && parts[2]?.includes('.')) {
+      const host = parts[2].trim();
+      const port = port3;
+      const username = parts[0]?.trim() || undefined;
+      const password = parts[1]?.trim() || undefined;
+      if (parts[4]) {
+        const extra = parts.slice(4).join(':').trim();
+        if (extra.startsWith('http://') || extra.startsWith('https://')) {
+          changeIpUrl = extra;
+        }
+      }
+      return { host, port, username, password, mode, changeIpUrl };
+    }
+  }
+
+  // Fallback: host:port
+  if (parts.length >= 2) {
+    const host = parts[0].trim();
+    const port = parseInt(parts[1].trim(), 10);
+    if (!isNaN(port) && port > 0 && port <= 65535) {
+      const username = parts[2] ? parts[2].trim() : undefined;
+      const password = parts[3] ? parts[3].trim() : undefined;
+      return { host, port, username, password, mode, changeIpUrl };
+    }
+  }
+
+  return null;
+}
+
 interface ProfileSwitcherProps {
   profiles: Profile[];
   isAuthenticated: boolean;
@@ -94,7 +191,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
 
   // Proxy form fields
   const [proxyEnabled, setProxyEnabled] = useState(false);
-  const [proxyMode, setProxyMode] = useState<'direct' | 'http' | 'https' | 'socks5'>('socks5');
+  const [proxyMode, setProxyMode] = useState<'direct' | 'http' | 'https' | 'socks5'>('http');
   const [proxyHost, setProxyHost] = useState('');
   const [proxyPort, setProxyPort] = useState<number>(9050);
   const [proxyUsername, setProxyUsername] = useState('');
@@ -109,6 +206,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   const [selectedCountryCode, setSelectedCountryCode] = useState<string>('ALL');
   const [proxyFilterProtocol, setProxyFilterProtocol] = useState<'all' | 'socks5' | 'http'>('all');
   const [proxySearchText, setProxySearchText] = useState<string>('');
+  const [quickProxyInput, setQuickProxyInput] = useState<string>('');
 
   // Proxy test and rotation state
   const [testingProxy, setTestingProxy] = useState(false);
@@ -738,31 +836,16 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
         .filter(Boolean);
 
       const parsedProxies = rawLines.map((line) => {
-        // Check url pattern
-        try {
-          if (line.includes('://')) {
-            const u = new URL(line);
-            return {
-              enabled: true,
-              mode: (u.protocol.replace(':', '') as any) || 'socks5',
-              host: u.hostname,
-              port: Number(u.port) || 8080,
-              username: u.username || undefined,
-              password: u.password || undefined,
-            };
-          }
-        } catch {}
-
-        // Fallback to host:port[:user:pass]
-        const parts = line.split(':');
-        if (parts.length >= 2) {
+        const parsed = parseProxyString(line);
+        if (parsed) {
           return {
             enabled: true,
-            mode: 'socks5' as const,
-            host: parts[0],
-            port: Number(parts[1]) || 8080,
-            username: parts[2] || undefined,
-            password: parts[3] || undefined,
+            mode: parsed.mode || 'http',
+            host: parsed.host,
+            port: parsed.port,
+            username: parsed.username,
+            password: parsed.password,
+            changeIpUrl: parsed.changeIpUrl,
           };
         }
         return null;
@@ -820,7 +903,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     setTimezone('auto');
     setIsTemporary(false);
     setProxyEnabled(false);
-    setProxyMode('socks5');
+    setProxyMode('http');
     setProxyHost('');
     setProxyPort(9050);
     setProxyUsername('');
@@ -828,6 +911,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     setChangeIpUrl('');
     setSelectedSavedProxyId('');
     setProxyTestResult(null);
+    setQuickProxyInput('');
     setRemoteDebuggingPort('');
     setTags([]);
     setProfileCookiesContent('');
@@ -866,6 +950,16 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     setChangeIpUrl((p.proxy as any).changeIpUrl || '');
     setSelectedSavedProxyId('');
     setProxyTestResult(null);
+    if (p.proxy?.enabled && p.proxy?.host) {
+      const parts = [`${p.proxy.host}:${p.proxy.port}`];
+      if (p.proxy.username) {
+        parts.push(p.proxy.username);
+        if (p.proxy.password) parts.push(p.proxy.password);
+      }
+      setQuickProxyInput(parts.join(':'));
+    } else {
+      setQuickProxyInput('');
+    }
     setProfileCookiesStatus('');
     loadCookiesForEditor(p.id, profileCookiesFormat);
     setIsCreateOpen(true);
@@ -1104,6 +1198,46 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     }
   };
 
+  const handleApplyAndTestProxyString = async (rawString: string) => {
+    setQuickProxyInput(rawString);
+    const parsed = parseProxyString(rawString);
+    if (!parsed) return;
+
+    setProxyEnabled(true);
+    setProxyHost(parsed.host);
+    setProxyPort(parsed.port);
+    setProxyUsername(parsed.username || '');
+    setProxyPassword(parsed.password || '');
+    if (parsed.changeIpUrl) {
+      setChangeIpUrl(parsed.changeIpUrl);
+    }
+    const modeToUse = parsed.mode || 'http';
+    setProxyMode(modeToUse);
+
+    if (!window.browserAPI) return;
+    setTestingProxy(true);
+    setProxyTestResult(null);
+
+    try {
+      const result = await window.browserAPI.testProxy({
+        enabled: true,
+        mode: modeToUse,
+        host: parsed.host,
+        port: parsed.port,
+        username: parsed.username || undefined,
+        password: parsed.password || undefined,
+      });
+      setProxyTestResult(result);
+      if (result?.detectedMode && result.detectedMode !== 'direct') {
+        setProxyMode(result.detectedMode);
+      }
+    } catch (err: any) {
+      setProxyTestResult({ success: false, error: err.message });
+    } finally {
+      setTestingProxy(false);
+    }
+  };
+
   const handleTestProxy = async () => {
     if (!proxyHost.trim() || !window.browserAPI) return;
     setTestingProxy(true);
@@ -1118,6 +1252,9 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
         password: proxyPassword.trim() || undefined,
       });
       setProxyTestResult(result);
+      if (result?.detectedMode && result.detectedMode !== 'direct') {
+        setProxyMode(result.detectedMode);
+      }
     } catch (err: any) {
       setProxyTestResult({ success: false, error: err.message });
     } finally {
@@ -3275,6 +3412,9 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                                   ) : proxyTestResult?.success ? (
                                     <>
                                       <span>Host: {proxyHost}:{proxyPort}</span>
+                                      {proxyTestResult.ip && (
+                                        <span> · Exit IP: {proxyTestResult.ip}</span>
+                                      )}
                                       {(proxyTestResult.country || proxyTestResult.city) && (
                                         <span> · 📍 {[proxyTestResult.city, proxyTestResult.country].filter(Boolean).join(', ')}</span>
                                       )}
@@ -3741,6 +3881,194 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                           </div>
                         )}
 
+                        {/* Quick Proxy Paste & Auto-Test Box */}
+                        <div
+                          style={{
+                            padding: '14px 16px',
+                            backgroundColor: '#111422',
+                            borderRadius: 10,
+                            border: `1.5px solid ${
+                              testingProxy
+                                ? 'rgba(56, 189, 248, 0.45)'
+                                : proxyTestResult?.success
+                                ? 'rgba(16, 185, 129, 0.45)'
+                                : proxyTestResult?.success === false
+                                ? 'rgba(239, 68, 68, 0.45)'
+                                : '#283149'
+                            }`,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 10,
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                              <Zap size={16} color="#38bdf8" />
+                              <span style={{ fontSize: 13, fontWeight: 700, color: '#f8fafc' }}>
+                                Quick Proxy Paste & Auto-Test
+                              </span>
+                            </div>
+                            <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                              Format: <code style={{ color: '#38bdf8', backgroundColor: '#090d18', padding: '2px 6px', borderRadius: 4 }}>host:port:user:pass</code>
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            <div style={{ position: 'relative', flex: 1 }}>
+                              <input
+                                type="text"
+                                placeholder="Paste proxy (e.g. gw.dataimpulse.com:10000:username:password)"
+                                value={quickProxyInput}
+                                onChange={(e) => handleApplyAndTestProxyString(e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '10px 14px',
+                                  paddingRight: testingProxy || proxyTestResult ? 140 : 14,
+                                  backgroundColor: '#090c16',
+                                  border: '1px solid #2f3854',
+                                  borderRadius: 8,
+                                  color: '#ffffff',
+                                  fontSize: 12,
+                                  fontFamily: 'monospace',
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                }}
+                              />
+
+                              {testingProxy && (
+                                <div
+                                  style={{
+                                    position: 'absolute',
+                                    right: 12,
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    fontSize: 11,
+                                    color: '#38bdf8',
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  <Loader2 size={14} className="animate-spin" />
+                                  <span>Testing...</span>
+                                </div>
+                              )}
+
+                              {!testingProxy && proxyTestResult?.success && (
+                                <div
+                                  style={{
+                                    position: 'absolute',
+                                    right: 12,
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 5,
+                                    fontSize: 11,
+                                    color: '#34d399',
+                                    fontWeight: 700,
+                                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                                    padding: '3px 8px',
+                                    borderRadius: 6,
+                                  }}
+                                >
+                                  <CheckCircle2 size={13} color="#34d399" />
+                                  <span>Connected</span>
+                                </div>
+                              )}
+
+                              {!testingProxy && proxyTestResult?.success === false && (
+                                <div
+                                  style={{
+                                    position: 'absolute',
+                                    right: 12,
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 5,
+                                    fontSize: 11,
+                                    color: '#f87171',
+                                    fontWeight: 700,
+                                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                    padding: '3px 8px',
+                                    borderRadius: 6,
+                                  }}
+                                >
+                                  <AlertCircle size={13} color="#f87171" />
+                                  <span>Error</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (quickProxyInput.trim()) {
+                                  handleApplyAndTestProxyString(quickProxyInput);
+                                } else if (proxyHost.trim()) {
+                                  handleTestProxy();
+                                }
+                              }}
+                              disabled={testingProxy || (!quickProxyInput.trim() && !proxyHost.trim())}
+                              style={{
+                                padding: '10px 16px',
+                                backgroundColor: '#2563eb',
+                                border: 'none',
+                                borderRadius: 8,
+                                color: '#ffffff',
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                whiteSpace: 'nowrap',
+                                opacity: testingProxy || (!quickProxyInput.trim() && !proxyHost.trim()) ? 0.6 : 1,
+                              }}
+                            >
+                              {testingProxy ? (
+                                <>
+                                  <Loader2 size={14} className="animate-spin" />
+                                  Testing...
+                                </>
+                              ) : (
+                                <>
+                                  <Play size={14} />
+                                  Test Now
+                                </>
+                              )}
+                            </button>
+                          </div>
+
+                          {proxyTestResult && !testingProxy && (
+                            <div
+                              style={{
+                                fontSize: 11,
+                                color: proxyTestResult.success ? '#34d399' : '#f87171',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '2px 4px',
+                              }}
+                            >
+                              {proxyTestResult.success ? (
+                                <span>
+                                  ✓ Connected successfully · Ping: {proxyTestResult.latencyMs}ms
+                                  {proxyTestResult.ip && ` · Exit IP: ${proxyTestResult.ip}`}
+                                  {(proxyTestResult.city || proxyTestResult.country) && ` · 📍 ${[proxyTestResult.city, proxyTestResult.country].filter(Boolean).join(', ')}`}
+                                  {proxyTestResult.timezone && ` · 🕒 ${proxyTestResult.timezone}`}
+                                </span>
+                              ) : (
+                                <span>
+                                  ✗ {proxyTestResult.error || 'Failed to connect. Please verify host, port, username and password.'}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
                         {/* 3. Manual Proxy Configuration Inputs */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                           <div style={{ display: 'flex', gap: 10 }}>
@@ -3775,7 +4103,14 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                                 type="text"
                                 placeholder="e.g. 192.168.1.1 or proxy.example.com"
                                 value={proxyHost}
-                                onChange={(e) => setProxyHost(e.target.value)}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val.includes(':') && (val.split(':').length >= 3 || val.includes('@'))) {
+                                    handleApplyAndTestProxyString(val);
+                                  } else {
+                                    setProxyHost(val);
+                                  }
+                                }}
                                 style={{
                                   width: '100%',
                                   padding: '9px 12px',
@@ -3906,6 +4241,40 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                             >
                               <Bookmark size={13} />
                               Save to Pool
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={handleTestProxy}
+                              disabled={testingProxy || !proxyHost.trim()}
+                              style={{
+                                padding: '8px 14px',
+                                backgroundColor: '#0284c7',
+                                border: 'none',
+                                borderRadius: 8,
+                                color: '#ffffff',
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                opacity: testingProxy || !proxyHost.trim() ? 0.6 : 1,
+                              }}
+                              title="Test connection of current proxy settings"
+                            >
+                              {testingProxy ? (
+                                <>
+                                  <Loader2 size={13} className="animate-spin" />
+                                  Testing...
+                                </>
+                              ) : (
+                                <>
+                                  <Wifi size={13} />
+                                  Test Proxy
+                                </>
+                              )}
                             </button>
                           </div>
                         </div>

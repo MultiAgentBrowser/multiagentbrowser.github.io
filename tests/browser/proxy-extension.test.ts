@@ -26,8 +26,9 @@ describe('Proxy Auth Extension Generator', () => {
 
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
     expect(manifest.name).toBe('Proxy Authentication Provider');
+    expect(manifest.manifest_version).toBe(3);
     expect(manifest.permissions).toContain('webRequest');
-    expect(manifest.permissions).toContain('webRequestBlocking');
+    expect(manifest.permissions).toContain('webRequestAuthProvider');
 
     const script = fs.readFileSync(backgroundPath, 'utf-8');
     expect(script).toContain('"user_alpha"');
