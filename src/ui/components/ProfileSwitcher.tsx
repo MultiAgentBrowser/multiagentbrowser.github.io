@@ -140,6 +140,8 @@ export function parseProxyString(raw: string): ParsedProxyInfo | null {
   return null;
 }
 
+const BROWSER_VERSION_OPTIONS: string[] = Array.from({ length: 165 - 145 + 1 }, (_, i) => `${165 - i}.0.0.0`);
+
 interface ProfileSwitcherProps {
   profiles: Profile[];
   isAuthenticated: boolean;
@@ -179,6 +181,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   const [browserType, setBrowserType] = useState<'chrome' | 'edge' | 'brave'>('chrome');
   const [browserVersion, setBrowserVersion] = useState<string>('150.0.0.0');
   const [customUserAgent, setCustomUserAgent] = useState('');
+  const [copiedUA, setCopiedUA] = useState(false);
   const [color, setColor] = useState('#3b82f6');
   const [notes, setNotes] = useState('');
   const [privacyLevel, setPrivacyLevel] = useState<'standard' | 'balanced' | 'strict'>('balanced');
@@ -537,6 +540,15 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
       if (ok) return true;
     } catch {}
     return false;
+  };
+
+  const handleCopyUserAgent = async () => {
+    const effectiveUA = customUserAgent.trim() || getBrowserUserAgent(browserType, browserVersion, os);
+    const ok = await copyTextToClipboard(effectiveUA);
+    if (ok) {
+      setCopiedUA(true);
+      setTimeout(() => setCopiedUA(false), 2000);
+    }
   };
 
   const handleOpenCookieModal = async (profile: Profile, format: 'json' | 'netscape' = 'json') => {
@@ -3009,74 +3021,153 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                         ))}
                       </div>
 
-                      {/* Browser Version & User-Agent */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 14, alignItems: 'flex-start' }}>
-                        <div>
-                          <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#9ba1b0', marginBottom: 6 }}>
-                            Browser Version
+                      {/* Browser Version Dropdown (165 to 145) */}
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                          <label style={{ fontSize: 12, fontWeight: 500, color: '#cbd5e1' }}>
+                            Browser Version (v165 – v145)
                           </label>
-                          <input
-                            type="text"
-                            maxLength={64}
-                            placeholder="150.0.0.0"
-                            value={browserVersion}
-                            onChange={(e) => setBrowserVersion(e.target.value)}
-                            style={{
-                              width: '100%',
-                              padding: '10px 14px',
-                              backgroundColor: '#0e1017',
-                              border: '1px solid #2c3245',
-                              borderRadius: 8,
-                              color: '#ffffff',
-                              fontSize: 13,
-                              boxSizing: 'border-box',
-                              outline: 'none',
-                            }}
-                          />
+                          <span style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600 }}>
+                            Chromium v{browserVersion.split('.')[0] || '150'}
+                          </span>
                         </div>
-
-                        <div>
-                          <label htmlFor="custom-user-agent" style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#9ba1b0', marginBottom: 6 }}>
-                            Custom User-Agent (optional)
-                          </label>
-                          <input
-                            id="custom-user-agent"
-                            type="text"
-                            maxLength={512}
-                            value={customUserAgent}
-                            onChange={(event) => setCustomUserAgent(event.target.value)}
-                            placeholder="Leave blank to use the selected browser & version"
-                            style={{
-                              width: '100%',
-                              padding: '10px 14px',
-                              backgroundColor: '#0e1017',
-                              border: '1px solid #2c3245',
-                              borderRadius: 8,
-                              color: '#ffffff',
-                              fontSize: 12,
-                              boxSizing: 'border-box',
-                              outline: 'none',
-                            }}
-                          />
-                        </div>
+                        <select
+                          value={
+                            BROWSER_VERSION_OPTIONS.find((v) => v === browserVersion || v.startsWith(browserVersion.split('.')[0] + '.')) ||
+                            browserVersion ||
+                            '150.0.0.0'
+                          }
+                          onChange={(e) => setBrowserVersion(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '10px 14px',
+                            backgroundColor: '#0e1017',
+                            border: '1px solid #2c3245',
+                            borderRadius: 8,
+                            color: '#ffffff',
+                            fontSize: 13,
+                            outline: 'none',
+                            cursor: 'pointer',
+                            boxSizing: 'border-box',
+                          }}
+                        >
+                          {!BROWSER_VERSION_OPTIONS.some((v) => v === browserVersion || v.startsWith(browserVersion.split('.')[0] + '.')) && browserVersion && (
+                            <option value={browserVersion}>{browserVersion} (Custom)</option>
+                          )}
+                          {BROWSER_VERSION_OPTIONS.map((ver) => (
+                            <option key={ver} value={ver}>
+                              Version {ver.split('.')[0]} ({ver})
+                            </option>
+                          ))}
+                        </select>
                       </div>
 
-                      {/* User-Agent Preview Box */}
+                      {/* Effective User-Agent String (Copyable and Directly Editable) */}
                       <div
                         style={{
                           backgroundColor: '#0e1017',
-                          padding: '12px 16px',
-                          borderRadius: 8,
+                          padding: '14px 16px',
+                          borderRadius: 10,
                           border: '1px solid #24293c',
-                          fontSize: 11,
-                          lineHeight: '1.5',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 10,
                         }}
                       >
-                        <div style={{ color: '#60a5fa', fontWeight: 600, marginBottom: 4 }}>
-                          ⚡ Effective User-Agent String:
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ color: '#60a5fa', fontWeight: 700, fontSize: 12.5 }}>
+                              ⚡ Effective User-Agent String:
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 10.5,
+                                padding: '2px 7px',
+                                borderRadius: 4,
+                                backgroundColor: customUserAgent.trim() ? 'rgba(245, 158, 11, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                                color: customUserAgent.trim() ? '#fcd34d' : '#60a5fa',
+                                fontWeight: 600,
+                              }}
+                            >
+                              {customUserAgent.trim() ? 'Custom Modified' : 'Auto Generated'}
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            {customUserAgent.trim() && (
+                              <button
+                                type="button"
+                                onClick={() => setCustomUserAgent('')}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  padding: '4px 10px',
+                                  borderRadius: 6,
+                                  backgroundColor: '#1c2130',
+                                  border: '1px solid #2e374f',
+                                  color: '#94a3b8',
+                                  fontSize: 11,
+                                  fontWeight: 500,
+                                  cursor: 'pointer',
+                                }}
+                                title="Reset User-Agent to default auto-generated format"
+                              >
+                                <RotateCw size={11} />
+                                <span>Reset Auto</span>
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={handleCopyUserAgent}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 5,
+                                padding: '5px 12px',
+                                borderRadius: 6,
+                                backgroundColor: copiedUA ? 'rgba(16, 185, 129, 0.2)' : 'rgba(56, 189, 248, 0.12)',
+                                border: `1px solid ${copiedUA ? '#059669' : 'rgba(56, 189, 248, 0.35)'}`,
+                                color: copiedUA ? '#34d399' : '#38bdf8',
+                                fontSize: 11.5,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                              }}
+                              title="Copy User-Agent string to clipboard"
+                            >
+                              {copiedUA ? <Check size={12} color="#34d399" /> : <Copy size={12} color="#38bdf8" />}
+                              <span>{copiedUA ? 'Copied!' : 'Copy UA'}</span>
+                            </button>
+                          </div>
                         </div>
-                        <div style={{ color: '#cbd5e1', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                          {customUserAgent.trim() || getBrowserUserAgent(browserType, browserVersion, os)}
+
+                        {/* Directly editable User-Agent Textarea */}
+                        <textarea
+                          rows={2}
+                          value={customUserAgent !== '' ? customUserAgent : getBrowserUserAgent(browserType, browserVersion, os)}
+                          onChange={(e) => setCustomUserAgent(e.target.value)}
+                          placeholder="Edit or paste custom User-Agent string here..."
+                          style={{
+                            width: '100%',
+                            padding: '9px 12px',
+                            backgroundColor: '#070910',
+                            border: '1px solid #283048',
+                            borderRadius: 6,
+                            color: '#cbd5e1',
+                            fontSize: 11.5,
+                            fontFamily: 'monospace',
+                            lineHeight: '1.5',
+                            outline: 'none',
+                            resize: 'vertical',
+                            boxSizing: 'border-box',
+                          }}
+                        />
+
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 10.5, color: '#64748b' }}>
+                          <span>✍️ You can directly edit or paste any custom User-Agent above.</span>
+                          <span>Click "Copy UA" to copy to clipboard.</span>
                         </div>
                       </div>
 
