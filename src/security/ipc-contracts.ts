@@ -7,6 +7,7 @@ export const WebRTCPolicySchema = z.enum([
   'default',
   'default_public_interface_only',
   'disable_non_proxied_udp',
+  'disabled',
 ]);
 export type WebRTCPolicy = z.infer<typeof WebRTCPolicySchema>;
 
@@ -54,6 +55,8 @@ export const ProfileSchema = z.object({
   browserType: BrowserTypeSchema.default('chrome'),
   browserVersion: z.string().default('150.0.0.0'),
   customUserAgent: z.string().max(512).optional(),
+  language: z.string().default('en-US'),
+  timezone: z.string().default('auto'),
   storagePath: z.string().default(''),
   status: z.enum(['stopped', 'running', 'crashed']).default('stopped'),
   lastUsedAt: z.number().nullable().default(null),

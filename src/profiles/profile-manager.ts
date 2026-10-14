@@ -29,12 +29,14 @@ export class ProfileManager {
     name: string;
     isTemporary: boolean;
     privacyLevel: 'standard' | 'balanced' | 'strict';
-    webrtcPolicy: 'default' | 'default_public_interface_only' | 'disable_non_proxied_udp';
+    webrtcPolicy: 'default' | 'default_public_interface_only' | 'disable_non_proxied_udp' | 'disabled';
     proxy: any;
     os?: 'mac' | 'windows';
     browserType?: 'chrome' | 'edge' | 'brave';
     browserVersion?: string;
     customUserAgent?: string;
+    language?: string;
+    timezone?: string;
     notes?: string;
     group?: string;
     tags?: string[];
@@ -51,6 +53,8 @@ export class ProfileManager {
       os: data.os || 'mac',
       browserType: data.browserType || 'chrome',
       browserVersion: data.browserVersion || '150.0.0.0',
+      language: data.language || 'en-US',
+      timezone: data.timezone || 'auto',
       notes: data.notes || '',
       group: data.group || 'Default',
       tags: data.tags || [],
@@ -78,6 +82,8 @@ export class ProfileManager {
       browserType: dto.browserType || 'chrome',
       browserVersion: dto.browserVersion || '150.0.0.0',
       customUserAgent: dto.customUserAgent?.trim() || undefined,
+      language: dto.language?.trim() || 'en-US',
+      timezone: dto.timezone?.trim() || 'auto',
       notes: dto.notes || '',
       group: dto.group || 'Default',
       tags: dto.tags || [],
@@ -176,6 +182,8 @@ export class ProfileManager {
     if (dto.customUserAgent !== undefined) {
       profile.customUserAgent = dto.customUserAgent.trim() || undefined;
     }
+    if (dto.language !== undefined) profile.language = dto.language.trim() || 'en-US';
+    if (dto.timezone !== undefined) profile.timezone = dto.timezone.trim() || 'auto';
     if (dto.notes !== undefined) profile.notes = dto.notes;
     if (dto.group !== undefined) profile.group = dto.group;
     if (dto.tags !== undefined) profile.tags = dto.tags;
@@ -221,6 +229,8 @@ export class ProfileManager {
       browserType: source.browserType,
       browserVersion: source.browserVersion,
       customUserAgent: source.customUserAgent,
+      language: source.language,
+      timezone: source.timezone,
       notes: source.notes,
       group: source.group,
       tags: [...source.tags],

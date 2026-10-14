@@ -190,22 +190,6 @@ export class BrowserInstanceManager {
       const syncServer = SessionSyncServer.getInstance();
       const syncPort = await syncServer.start();
 
-      // Ensure Chromium Default Preferences are configured to restore last session
-      const defaultDir = path.join(userDataPath, 'Default');
-      fs.mkdirSync(defaultDir, { recursive: true });
-      const prefsPath = path.join(defaultDir, 'Preferences');
-      try {
-        let prefs: any = {};
-        if (fs.existsSync(prefsPath)) {
-          prefs = JSON.parse(fs.readFileSync(prefsPath, 'utf-8'));
-        }
-        prefs.session = prefs.session || {};
-        prefs.session.restore_on_startup = 1; // 1 = Restore last session
-        fs.writeFileSync(prefsPath, JSON.stringify(prefs, null, 2), 'utf-8');
-      } catch {
-        // Non-blocking preference setup
-      }
-
       const proxyRules = ProxyManager.buildProxyRules(profile.proxy);
 
       // Resolve Proxy IP Geo & Timezone for auto-matching (if enabled)
@@ -231,13 +215,60 @@ export class BrowserInstanceManager {
         }
       }
 
+      // Resolve effective Timezone (Manual selection vs Proxy IP auto-detection)
+      const effectiveTimezone = (profile.timezone && profile.timezone !== 'auto')
+        ? profile.timezone
+        : proxyGeo?.timezone;
+
+      const effectiveLanguage = profile.language || 'en-US';
+      const isWebrtcDisabled = profile.webrtcPolicy === 'disabled';
+
+      // Ensure Chromium Default Preferences are configured to restore last session and set intl / webrtc
+      const defaultDir = path.join(userDataPath, 'Default');
+      fs.mkdirSync(defaultDir, { recursive: true });
+      const prefsPath = path.join(defaultDir, 'Preferences');
+      try {
+        let prefs: any = {};
+        if (fs.existsSync(prefsPath)) {
+          prefs = JSON.parse(fs.readFileSync(prefsPath, 'utf-8'));
+        }
+        prefs.session = prefs.session || {};
+        prefs.session.restore_on_startup = 1; // 1 = Restore last session
+
+        // Configure intl language & accept-languages in Chromium profile
+        const baseLang = effectiveLanguage.split('-')[0];
+        const langChain = effectiveLanguage === 'en-US'
+          ? 'en-US,en'
+          : (effectiveLanguage.includes('-') ? `${effectiveLanguage},${baseLang}` : effectiveLanguage);
+
+        prefs.intl = prefs.intl || {};
+        prefs.intl.accept_languages = langChain;
+        prefs.intl.selected_languages = langChain;
+
+        // Configure WebRTC IP handling policy in Chromium preferences
+        prefs.webrtc = prefs.webrtc || {};
+        prefs.webrtc.ip_handling_policy = isWebrtcDisabled
+          ? 'disable_non_proxied_udp'
+          : (profile.webrtcPolicy || 'default_public_interface_only');
+
+        fs.writeFileSync(prefsPath, JSON.stringify(prefs, null, 2), 'utf-8');
+      } catch {
+        // Non-blocking preference setup
+      }
+
       const extensionPaths = [
         createFingerprintProtectionExtension(
           path.join(userDataPath, 'FingerprintProtectionExtension'),
           profile.id,
           profile.os,
           profile.privacyLevel,
-          proxyGeo
+          {
+            timezone: effectiveTimezone,
+            latitude: proxyGeo?.latitude,
+            longitude: proxyGeo?.longitude,
+            language: effectiveLanguage,
+            disableWebrtc: isWebrtcDisabled,
+          }
         ),
         createSessionSyncExtension(
           path.join(userDataPath, 'SessionSyncExtension'),
@@ -252,10 +283,23 @@ export class BrowserInstanceManager {
         '--no-default-browser-check',
         '--restore-last-session',
         `--user-agent=${getEffectiveUserAgent(profile.browserType, profile.browserVersion, profile.os, profile.customUserAgent)}`,
-        `--force-webrtc-ip-handling-policy=${profile.webrtcPolicy}`,
+        `--lang=${effectiveLanguage}`,
         `--proxy-server=${proxyRules}`,
         '--proxy-bypass-list=<local>',
       ];
+
+      // WebRTC: Manual ON & OFF Controls
+      if (isWebrtcDisabled) {
+        args.push('--disable-webrtc');
+        args.push('--force-webrtc-ip-handling-policy=disable_non_proxied_udp');
+      } else {
+        args.push(`--force-webrtc-ip-handling-policy=${profile.webrtcPolicy || 'default_public_interface_only'}`);
+      }
+
+      // Timezone: Manual selection
+      if (effectiveTimezone) {
+        args.push(`--timezone=${effectiveTimezone}`);
+      }
 
       // Puppeteer / Playwright Remote Debugging automation port support
       if (profile.remoteDebuggingPort && profile.remoteDebuggingPort > 0) {
@@ -284,7 +328,15 @@ export class BrowserInstanceManager {
         args.push('https://www.google.com');
       }
 
-      const child = spawn(executablePath, args, { detached: true, stdio: 'ignore' });
+      const childEnv: Record<string, string | undefined> = { ...process.env };
+      if (effectiveTimezone) {
+        childEnv.TZ = effectiveTimezone;
+      }
+      if (effectiveLanguage) {
+        childEnv.LANG = `${effectiveLanguage.replace('-', '_')}.UTF-8`;
+      }
+
+      const child = spawn(executablePath, args, { detached: true, stdio: 'ignore', env: childEnv });
       return await new Promise((resolve, reject) => {
         child.once('error', (error) => {
           this.activeInstances.delete(profileId);

@@ -85,7 +85,9 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   const [color, setColor] = useState('#3b82f6');
   const [notes, setNotes] = useState('');
   const [privacyLevel, setPrivacyLevel] = useState<'standard' | 'balanced' | 'strict'>('balanced');
-  const [webrtcPolicy, setWebrtcPolicy] = useState<'default' | 'default_public_interface_only' | 'disable_non_proxied_udp'>('default_public_interface_only');
+  const [webrtcPolicy, setWebrtcPolicy] = useState<'default' | 'default_public_interface_only' | 'disable_non_proxied_udp' | 'disabled'>('default_public_interface_only');
+  const [language, setLanguage] = useState<string>('en-US');
+  const [timezone, setTimezone] = useState<string>('auto');
   const [isTemporary, setIsTemporary] = useState(false);
   const [remoteDebuggingPort, setRemoteDebuggingPort] = useState<number | ''>('');
   const [tags, setTags] = useState<string[]>([]);
@@ -814,6 +816,8 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     setNotes('');
     setPrivacyLevel('balanced');
     setWebrtcPolicy('default_public_interface_only');
+    setLanguage('en-US');
+    setTimezone('auto');
     setIsTemporary(false);
     setProxyEnabled(false);
     setProxyMode('socks5');
@@ -845,10 +849,12 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     setBrowserType((p as any).browserType || 'chrome');
     setBrowserVersion((p as any).browserVersion || '150.0.0.0');
     setCustomUserAgent(p.customUserAgent || '');
+    setLanguage((p as any).language || 'en-US');
+    setTimezone((p as any).timezone || 'auto');
     setColor(p.color || '#3b82f6');
     setNotes((p as any).notes || '');
     setPrivacyLevel(p.privacyLevel);
-    setWebrtcPolicy(p.webrtcPolicy);
+    setWebrtcPolicy(p.webrtcPolicy || 'default_public_interface_only');
     setIsTemporary(p.isTemporary);
     setRemoteDebuggingPort((p as any).remoteDebuggingPort || '');
     setProxyEnabled(p.proxy.enabled);
@@ -1007,6 +1013,8 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
         name: name.trim(),
         privacyLevel,
         webrtcPolicy,
+        language,
+        timezone,
         proxy: proxyData,
         os,
         browserType,
@@ -1027,6 +1035,8 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
         isTemporary,
         privacyLevel,
         webrtcPolicy,
+        language,
+        timezone,
         proxy: proxyData,
         os,
         browserType,
@@ -2930,6 +2940,134 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                         </div>
                       </div>
 
+                      {/* Localization & Regional Settings (Language & Time Zone) */}
+                      <div
+                        style={{
+                          padding: '16px 18px',
+                          backgroundColor: '#131520',
+                          border: '1px solid #282d42',
+                          borderRadius: 10,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 14,
+                        }}
+                      >
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Globe size={15} color="#38bdf8" />
+                          Localization & Regional Settings
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                          {/* Language Selection */}
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                              <label style={{ fontSize: 12, fontWeight: 500, color: '#cbd5e1' }}>
+                                Language (Default: EN)
+                              </label>
+                              <span style={{ fontSize: 10.5, color: '#38bdf8', fontWeight: 600 }}>
+                                {language}
+                              </span>
+                            </div>
+                            <select
+                              value={language}
+                              onChange={(e) => setLanguage(e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '10px 12px',
+                                backgroundColor: '#0e1017',
+                                border: '1px solid #2c3245',
+                                borderRadius: 8,
+                                color: '#ffffff',
+                                fontSize: 12.5,
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              <option value="en-US">English (US) — en-US (Default)</option>
+                              <option value="en-GB">English (UK) — en-GB</option>
+                              <option value="es-ES">Spanish (Spain) — es-ES</option>
+                              <option value="es-MX">Spanish (Mexico) — es-MX</option>
+                              <option value="fr-FR">French (France) — fr-FR</option>
+                              <option value="de-DE">German (Germany) — de-DE</option>
+                              <option value="it-IT">Italian (Italy) — it-IT</option>
+                              <option value="pt-BR">Portuguese (Brazil) — pt-BR</option>
+                              <option value="ru-RU">Russian (Russia) — ru-RU</option>
+                              <option value="zh-CN">Chinese (Simplified) — zh-CN</option>
+                              <option value="ja-JP">Japanese (Japan) — ja-JP</option>
+                              <option value="ko-KR">Korean (South Korea) — ko-KR</option>
+                              <option value="bn-BD">Bengali (Bangladesh) — bn-BD</option>
+                              <option value="hi-IN">Hindi (India) — hi-IN</option>
+                              <option value="ar-SA">Arabic (Saudi Arabia) — ar-SA</option>
+                              <option value="tr-TR">Turkish (Turkey) — tr-TR</option>
+                              <option value="nl-NL">Dutch (Netherlands) — nl-NL</option>
+                              <option value="pl-PL">Polish (Poland) — pl-PL</option>
+                              <option value="vi-VN">Vietnamese (Vietnam) — vi-VN</option>
+                              <option value="id-ID">Indonesian (Indonesia) — id-ID</option>
+                            </select>
+                            <span style={{ display: 'block', fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                              Sets browser UI language, navigator.language & Accept-Language
+                            </span>
+                          </div>
+
+                          {/* Time Zone Selection */}
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                              <label style={{ fontSize: 12, fontWeight: 500, color: '#cbd5e1' }}>
+                                Time Zone
+                              </label>
+                              <span style={{ fontSize: 10.5, color: '#f59e0b', fontWeight: 600 }}>
+                                {timezone === 'auto' ? 'Auto-match' : timezone.split('/').pop()?.replace(/_/g, ' ')}
+                              </span>
+                            </div>
+                            <select
+                              value={timezone}
+                              onChange={(e) => setTimezone(e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '10px 12px',
+                                backgroundColor: '#0e1017',
+                                border: '1px solid #2c3245',
+                                borderRadius: 8,
+                                color: '#ffffff',
+                                fontSize: 12.5,
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              <option value="auto">🌐 Auto-detect (Match Proxy IP / System)</option>
+                              <option value="America/New_York">🇺🇸 America/New_York (US Eastern UTC-5)</option>
+                              <option value="America/Chicago">🇺🇸 America/Chicago (US Central UTC-6)</option>
+                              <option value="America/Denver">🇺🇸 America/Denver (US Mountain UTC-7)</option>
+                              <option value="America/Los_Angeles">🇺🇸 America/Los_Angeles (US Pacific UTC-8)</option>
+                              <option value="America/Toronto">🇨🇦 America/Toronto (Canada Eastern UTC-5)</option>
+                              <option value="America/Sao_Paulo">🇧🇷 America/Sao_Paulo (Brazil UTC-3)</option>
+                              <option value="Europe/London">🇬🇧 Europe/London (GMT/BST UTC+0)</option>
+                              <option value="Europe/Paris">🇫🇷 Europe/Paris (CET UTC+1)</option>
+                              <option value="Europe/Berlin">🇩🇪 Europe/Berlin (Germany UTC+1)</option>
+                              <option value="Europe/Amsterdam">🇳🇱 Europe/Amsterdam (Netherlands UTC+1)</option>
+                              <option value="Europe/Madrid">🇪🇸 Europe/Madrid (Spain UTC+1)</option>
+                              <option value="Europe/Rome">🇮🇹 Europe/Rome (Italy UTC+1)</option>
+                              <option value="Europe/Moscow">🇷🇺 Europe/Moscow (Russia UTC+3)</option>
+                              <option value="Europe/Kiev">🇺🇦 Europe/Kiev (Ukraine UTC+2)</option>
+                              <option value="Asia/Dubai">🇦🇪 Asia/Dubai (UAE UTC+4)</option>
+                              <option value="Asia/Kolkata">🇮🇳 Asia/Kolkata (India IST UTC+5:30)</option>
+                              <option value="Asia/Dhaka">🇧🇩 Asia/Dhaka (Bangladesh UTC+6)</option>
+                              <option value="Asia/Bangkok">🇹🇭 Asia/Bangkok (Thailand UTC+7)</option>
+                              <option value="Asia/Singapore">🇸🇬 Asia/Singapore (Singapore UTC+8)</option>
+                              <option value="Asia/Hong_Kong">🇭🇰 Asia/Hong_Kong (Hong Kong UTC+8)</option>
+                              <option value="Asia/Shanghai">🇨🇳 Asia/Shanghai (China UTC+8)</option>
+                              <option value="Asia/Tokyo">🇯🇵 Asia/Tokyo (Japan JST UTC+9)</option>
+                              <option value="Asia/Seoul">🇰🇷 Asia/Seoul (South Korea UTC+9)</option>
+                              <option value="Australia/Sydney">🇦🇺 Australia/Sydney (AEST UTC+10)</option>
+                              <option value="UTC">🌐 UTC (Coordinated Universal Time)</option>
+                            </select>
+                            <span style={{ display: 'block', fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                              Emulates system clock, TZ env & Intl.DateTimeFormat
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Notes / Tags */}
                       <div>
                         <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#9ba1b0', marginBottom: 6 }}>
@@ -3847,28 +3985,102 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                         ))}
                       </div>
 
-                      {/* WebRTC Policy */}
-                      <div style={{ marginTop: 4 }}>
-                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#9ba1b0', marginBottom: 6 }}>
-                          WebRTC IP Leakage Shield
-                        </label>
-                        <select
-                          value={webrtcPolicy}
-                          onChange={(e: any) => setWebrtcPolicy(e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '9px 12px',
-                            backgroundColor: '#0e1017',
-                            border: '1px solid #2c3245',
-                            borderRadius: 8,
-                            color: '#ffffff',
-                            fontSize: 12,
-                          }}
-                        >
-                          <option value="default_public_interface_only">Prevent LAN & Private IP Leaks (Default Public Interface Only)</option>
-                          <option value="disable_non_proxied_udp">Disable Non-Proxied UDP (Maximum Leak Protection)</option>
-                          <option value="default">Default Chromium Policy</option>
-                        </select>
+                      {/* WebRTC Policy & Manual ON/OFF Controls */}
+                      <div
+                        style={{
+                          marginTop: 8,
+                          padding: 14,
+                          backgroundColor: '#0f111a',
+                          border: '1px solid #282d42',
+                          borderRadius: 10,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 10,
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <Radio size={14} color={webrtcPolicy === 'disabled' ? '#f87171' : '#34d399'} />
+                              <span style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0' }}>
+                                WebRTC Manual Control & IP Leak Shield
+                              </span>
+                            </div>
+                            <span style={{ fontSize: 11, color: '#8891a5', marginTop: 2, display: 'block' }}>
+                              Manually turn WebRTC protocol on or off to prevent real IP exposure.
+                            </span>
+                          </div>
+
+                          {/* Manual ON / OFF Toggle Button */}
+                          <button
+                            type="button"
+                            onClick={() => setWebrtcPolicy(webrtcPolicy === 'disabled' ? 'default_public_interface_only' : 'disabled')}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              padding: '6px 14px',
+                              borderRadius: 20,
+                              border: `1px solid ${webrtcPolicy === 'disabled' ? 'rgba(239, 68, 68, 0.4)' : 'rgba(16, 185, 129, 0.4)'}`,
+                              cursor: 'pointer',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              backgroundColor: webrtcPolicy === 'disabled' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                              color: webrtcPolicy === 'disabled' ? '#f87171' : '#34d399',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: 8,
+                                height: 8,
+                                borderRadius: '50%',
+                                backgroundColor: webrtcPolicy === 'disabled' ? '#ef4444' : '#10b981',
+                              }}
+                            />
+                            {webrtcPolicy === 'disabled' ? 'WebRTC: OFF' : 'WebRTC: ON'}
+                          </button>
+                        </div>
+
+                        {webrtcPolicy !== 'disabled' ? (
+                          <div>
+                            <label style={{ display: 'block', fontSize: 11.5, fontWeight: 500, color: '#9ba1b0', marginBottom: 5 }}>
+                              Active WebRTC Routing Policy:
+                            </label>
+                            <select
+                              value={webrtcPolicy}
+                              onChange={(e: any) => setWebrtcPolicy(e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '9px 12px',
+                                backgroundColor: '#0e1017',
+                                border: '1px solid #2c3245',
+                                borderRadius: 8,
+                                color: '#ffffff',
+                                fontSize: 12,
+                                outline: 'none',
+                              }}
+                            >
+                              <option value="default_public_interface_only">Prevent LAN & Private IP Leaks (Default Public Interface Only)</option>
+                              <option value="disable_non_proxied_udp">Disable Non-Proxied UDP (Maximum Leak Protection)</option>
+                              <option value="default">Default Chromium Policy</option>
+                            </select>
+                          </div>
+                        ) : (
+                          <div
+                            style={{
+                              fontSize: 11.5,
+                              color: '#94a3b8',
+                              backgroundColor: '#0a0c14',
+                              padding: '8px 12px',
+                              borderRadius: 6,
+                              border: '1px solid #222638',
+                              lineHeight: '1.4',
+                            }}
+                          >
+                            🛡️ <b>WebRTC is completely disabled.</b> Chromium will launch with <code>--disable-webrtc</code> and all RTCPeerConnection APIs are neutralized to eliminate any possibility of real IP leakage.
+                          </div>
+                        )}
                       </div>
                     </div>
 

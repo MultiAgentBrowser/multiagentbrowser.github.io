@@ -139,7 +139,7 @@ export class PrivacyEngine {
     if (config.blockThirdPartyCookies) score += 20;
 
     // WebRTC IP leak protection: 20 pts
-    if (config.webrtcPolicy === 'disable_non_proxied_udp') score += 20;
+    if (config.webrtcPolicy === 'disabled' || config.webrtcPolicy === 'disable_non_proxied_udp') score += 20;
     else if (config.webrtcPolicy === 'default_public_interface_only') score += 15;
 
     // Fingerprint defenses: 20 pts

@@ -10,7 +10,8 @@ export class WebRTCController {
    */
   public static applyWebRTCPolicy(targetSession: Session, policy: WebRTCPolicy): void {
     try {
-      (targetSession as any).setWebRTCIPHandlingPolicy?.(policy);
+      const electronPolicy = policy === 'disabled' ? 'disable_non_proxied_udp' : policy;
+      (targetSession as any).setWebRTCIPHandlingPolicy?.(electronPolicy);
     } catch (err) {
       console.error(`Failed to set WebRTC IP handling policy to ${policy}:`, err);
     }

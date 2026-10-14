@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { FingerprintConfig } from './fingerprint-config';
-import { FingerprintInjector } from './fingerprint-injector';
+import { FingerprintInjector, ProxyGeoInfo } from './fingerprint-injector';
 import { getProfileFingerprintSeed } from './profile-fingerprint';
 import { BlocklistStore } from '../tracker/blocklist-store';
 
@@ -10,7 +10,7 @@ export function createFingerprintProtectionExtension(
   profileId: string,
   os: 'mac' | 'windows',
   mode: 'standard' | 'balanced' | 'strict',
-  proxyGeo?: { timezone?: string; latitude?: number; longitude?: number }
+  proxyGeo?: ProxyGeoInfo
 ): string {
   fs.mkdirSync(targetDir, { recursive: true });
 
@@ -51,6 +51,48 @@ export function createFingerprintProtectionExtension(
         excludedResourceTypes: ['main_frame'],
       },
     }));
+
+  if (proxyGeo?.language) {
+    const lang = proxyGeo.language;
+    const baseLang = lang.split('-')[0];
+    const acceptHeaderVal = lang === 'en-US'
+      ? 'en-US,en;q=0.9'
+      : (lang.includes('-') ? `${lang},${baseLang};q=0.9` : `${lang};q=0.9`);
+
+    rules.push({
+      id: rules.length + 1,
+      priority: 100,
+      action: {
+        type: 'modifyHeaders',
+        requestHeaders: [
+          {
+            header: 'accept-language',
+            operation: 'set',
+            value: acceptHeaderVal,
+          },
+        ],
+      },
+      condition: {
+        urlFilter: '|http',
+        resourceTypes: [
+          'main_frame',
+          'sub_frame',
+          'stylesheet',
+          'script',
+          'image',
+          'font',
+          'object',
+          'xmlhttprequest',
+          'ping',
+          'csp_report',
+          'media',
+          'websocket',
+          'other',
+        ],
+      },
+    } as any);
+  }
+
   const backgroundScript = `
 if (chrome.privacy?.websites?.thirdPartyCookiesAllowed) {
   chrome.privacy.websites.thirdPartyCookiesAllowed.set(
@@ -58,6 +100,17 @@ if (chrome.privacy?.websites?.thirdPartyCookiesAllowed) {
     () => {
       if (chrome.runtime.lastError) {
         console.warn('Could not disable third-party cookies:', chrome.runtime.lastError.message);
+      }
+    }
+  );
+}
+
+if (chrome.privacy?.network?.webRTCIPHandlingPolicy) {
+  chrome.privacy.network.webRTCIPHandlingPolicy.set(
+    { value: 'disable_non_proxied_udp', scope: 'regular' },
+    () => {
+      if (chrome.runtime.lastError) {
+        console.warn('Could not set webRTCIPHandlingPolicy:', chrome.runtime.lastError.message);
       }
     }
   );

@@ -43,6 +43,8 @@ export class ProfileStorage {
         browserType: (row.browser?.browser_type as any) || 'chrome',
         browserVersion: row.browser?.browser_version || '150.0.0.0',
         customUserAgent: row.browser?.custom_user_agent || undefined,
+        language: (row.browser as any)?.language || 'en-US',
+        timezone: (row.browser as any)?.timezone || 'auto',
         notes: row.profile.notes || '',
         group: (row.profile as any).group || 'Default',
         tags: (() => {
@@ -129,7 +131,9 @@ export class ProfileStorage {
           os: profile.os || 'mac',
           custom_flags: '',
           custom_user_agent: profile.customUserAgent || '',
-        }
+          language: profile.language || 'en-US',
+          timezone: profile.timezone || 'auto',
+        } as any
       );
     }
 
