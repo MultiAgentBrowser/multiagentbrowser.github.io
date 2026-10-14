@@ -65,7 +65,15 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   // Creation & Editing modal state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
-  const [editorTab, setEditorTab] = useState<'general' | 'proxy' | 'privacy'>('general');
+  const [editorTab, setEditorTab] = useState<'general' | 'proxy' | 'privacy' | 'cookies'>('general');
+
+  // Profile Editor Cookies state
+  const [profileCookiesContent, setProfileCookiesContent] = useState<string>('');
+  const [profileCookiesFormat, setProfileCookiesFormat] = useState<'json' | 'netscape'>('json');
+  const [profileCookiesCount, setProfileCookiesCount] = useState<number>(0);
+  const [profileCookiesStatus, setProfileCookiesStatus] = useState<string>('');
+  const [isSavingCookies, setIsSavingCookies] = useState<boolean>(false);
+  const [isCopyingCookies, setIsCopyingCookies] = useState<boolean>(false);
 
   // Form fields
   const [name, setName] = useState('');
@@ -128,8 +136,10 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
   const [cookieModalProfile, setCookieModalProfile] = useState<Profile | null>(null);
   const [cookieModalContent, setCookieModalContent] = useState('');
   const [cookieModalFormat, setCookieModalFormat] = useState<'json' | 'netscape'>('json');
-  const [cookieImportText, setCookieImportText] = useState('');
   const [cookieStatusMsg, setCookieStatusMsg] = useState('');
+  const [cookieModalCount, setCookieModalCount] = useState(0);
+  const [isSavingCookieModal, setIsSavingCookieModal] = useState(false);
+  const [isCopyingCookieModal, setIsCopyingCookieModal] = useState(false);
 
   // Bulk Profile Creator state
   const [showBulkCreateModal, setShowBulkCreateModal] = useState(false);
@@ -399,39 +409,110 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     return lines.join('\n');
   };
 
-  const handleOpenCookieModal = async (profile: Profile) => {
+  const copyTextToClipboard = async (text: string): Promise<boolean> => {
+    if (!text) return false;
+    if (window.browserAPI && (window.browserAPI as any).copyToClipboard) {
+      try {
+        await (window.browserAPI as any).copyToClipboard(text);
+        return true;
+      } catch {}
+    }
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {}
+    try {
+      const el = document.createElement('textarea');
+      el.value = text;
+      el.style.position = 'fixed';
+      el.style.opacity = '0';
+      document.body.appendChild(el);
+      el.focus();
+      el.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(el);
+      if (ok) return true;
+    } catch {}
+    return false;
+  };
+
+  const handleOpenCookieModal = async (profile: Profile, format: 'json' | 'netscape' = 'json') => {
     setCookieModalProfile(profile);
     setCookieStatusMsg('');
-    setCookieImportText('');
-    setCookieModalFormat('json');
-    if (window.browserAPI) {
-      if ((window.browserAPI as any).getSavedSession) {
+    setCookieModalFormat(format);
+    if (!window.browserAPI) return;
+
+    let cookiesList: any[] = [];
+    if ((window.browserAPI as any).getSavedSession) {
+      try {
         const session = await (window.browserAPI as any).getSavedSession(profile.id);
-        if (session?.cookies && session.cookies.length > 0) {
-          setCookieModalContent(formatCookiesList(session.cookies, 'json'));
-          return;
+        if (session?.cookies && Array.isArray(session.cookies) && session.cookies.length > 0) {
+          cookiesList = session.cookies;
         }
+      } catch {}
+    }
+
+    if (cookiesList.length === 0 && window.browserAPI.getCookies) {
+      try {
+        const directCookies = await window.browserAPI.getCookies(profile.id);
+        if (Array.isArray(directCookies) && directCookies.length > 0) {
+          cookiesList = directCookies;
+        }
+      } catch {}
+    }
+
+    setCookieModalCount(cookiesList.length);
+
+    if (cookiesList.length > 0) {
+      setCookieModalContent(formatCookiesList(cookiesList, format));
+      setCookieStatusMsg(`✓ Loaded ${cookiesList.length} stored cookies.`);
+    } else if (window.browserAPI.exportCookies) {
+      const data = await window.browserAPI.exportCookies(profile.id, format);
+      const isEmpty = !data || data.trim() === '[]';
+      setCookieModalContent(data || (format === 'json' ? '[]' : '# Netscape HTTP Cookie File\n'));
+      if (isEmpty) {
+        setCookieStatusMsg('ℹ️ No cookies found yet. You can paste cookies here and click Save & Apply, or browse websites in this profile.');
+      } else {
+        setCookieStatusMsg('✓ Loaded cookies from storage.');
       }
-      if (window.browserAPI.exportCookies) {
-        const data = await window.browserAPI.exportCookies(profile.id, 'json');
-        setCookieModalContent(data);
-      }
+    } else {
+      setCookieModalContent(format === 'json' ? '[]' : '# Netscape HTTP Cookie File\n');
+      setCookieStatusMsg('ℹ️ No cookies found yet. You can paste cookies here and click Save & Apply.');
     }
   };
 
   const handleExportCookiesFormat = async (format: 'json' | 'netscape') => {
     setCookieModalFormat(format);
     if (!cookieModalProfile || !window.browserAPI) return;
+
+    let cookiesList: any[] = [];
     if ((window.browserAPI as any).getSavedSession) {
-      const session = await (window.browserAPI as any).getSavedSession(cookieModalProfile.id);
-      if (session?.cookies && session.cookies.length > 0) {
-        setCookieModalContent(formatCookiesList(session.cookies, format));
-        return;
-      }
+      try {
+        const session = await (window.browserAPI as any).getSavedSession(cookieModalProfile.id);
+        if (session?.cookies && Array.isArray(session.cookies) && session.cookies.length > 0) {
+          cookiesList = session.cookies;
+        }
+      } catch {}
     }
-    if (window.browserAPI.exportCookies) {
+
+    if (cookiesList.length === 0 && window.browserAPI.getCookies) {
+      try {
+        const directCookies = await window.browserAPI.getCookies(cookieModalProfile.id);
+        if (Array.isArray(directCookies) && directCookies.length > 0) {
+          cookiesList = directCookies;
+        }
+      } catch {}
+    }
+
+    setCookieModalCount(cookiesList.length);
+
+    if (cookiesList.length > 0) {
+      setCookieModalContent(formatCookiesList(cookiesList, format));
+    } else if (window.browserAPI.exportCookies) {
       const data = await window.browserAPI.exportCookies(cookieModalProfile.id, format);
-      setCookieModalContent(data);
+      setCookieModalContent(data || (format === 'json' ? '[]' : '# Netscape HTTP Cookie File\n'));
     }
   };
 
@@ -447,12 +528,169 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  const handleImportCookiesSubmit = async () => {
-    if (!cookieModalProfile || !cookieImportText.trim() || !window.browserAPI) return;
+  const handleClearCookieModal = async () => {
+    if (!cookieModalProfile || !window.browserAPI) return;
+    if (!confirm('Are you sure you want to clear all cookies for this profile? Active logins will be logged out.')) return;
     try {
-      const result = await window.browserAPI.importCookies(cookieModalProfile.id, cookieImportText.trim());
+      if (window.browserAPI.clearAllCookies) {
+        await window.browserAPI.clearAllCookies(cookieModalProfile.id);
+      }
+      setCookieModalContent(cookieModalFormat === 'json' ? '[]' : '# Netscape HTTP Cookie File\n');
+      setCookieModalCount(0);
+      setCookieStatusMsg('✓ All cookies cleared from profile.');
+    } catch (err: any) {
+      setCookieStatusMsg(`✗ Failed to clear cookies: ${err.message}`);
+    }
+  };
+
+  const handleReloadCookieModal = async () => {
+    if (!cookieModalProfile) return;
+    await handleOpenCookieModal(cookieModalProfile, cookieModalFormat);
+  };
+
+  const loadCookiesForEditor = async (profileId: string, format: 'json' | 'netscape' = profileCookiesFormat) => {
+    setProfileCookiesStatus('');
+    if (!window.browserAPI) return;
+    try {
+      let rawCookies: any[] = [];
+      if ((window.browserAPI as any).getSavedSession) {
+        try {
+          const session = await (window.browserAPI as any).getSavedSession(profileId);
+          if (session?.cookies && Array.isArray(session.cookies) && session.cookies.length > 0) {
+            rawCookies = session.cookies;
+          }
+        } catch {}
+      }
+      if (rawCookies.length === 0 && window.browserAPI.getCookies) {
+        try {
+          const direct = await window.browserAPI.getCookies(profileId);
+          if (Array.isArray(direct) && direct.length > 0) {
+            rawCookies = direct;
+          }
+        } catch {}
+      }
+      setProfileCookiesCount(rawCookies.length);
+      if (rawCookies.length > 0) {
+        setProfileCookiesContent(formatCookiesList(rawCookies, format));
+        setProfileCookiesStatus(`✓ Loaded ${rawCookies.length} stored cookies.`);
+      } else if (window.browserAPI.exportCookies) {
+        const exported = await window.browserAPI.exportCookies(profileId, format);
+        const isEmpty = !exported || exported.trim() === '[]';
+        setProfileCookiesContent(exported || (format === 'json' ? '[]' : '# Netscape HTTP Cookie File\n'));
+        if (isEmpty) {
+          setProfileCookiesStatus('ℹ️ No cookies found yet. Start the profile and browse websites to generate cookies, or paste cookies here.');
+        } else {
+          setProfileCookiesStatus('✓ Loaded cookies from storage.');
+        }
+      } else {
+        setProfileCookiesContent(format === 'json' ? '[]' : '# Netscape HTTP Cookie File\n');
+        setProfileCookiesStatus('ℹ️ No cookies found yet. Start the profile and browse websites to generate cookies.');
+      }
+    } catch (err: any) {
+      setProfileCookiesStatus(`Error loading cookies: ${err.message}`);
+    }
+  };
+
+  const handleCopyProfileCookies = async () => {
+    if (!profileCookiesContent || profileCookiesContent.trim() === '[]') {
+      setProfileCookiesStatus('⚠️ No cookies to copy (empty)');
+      setTimeout(() => setProfileCookiesStatus(''), 2500);
+      return;
+    }
+    const success = await copyTextToClipboard(profileCookiesContent);
+    if (success) {
+      setIsCopyingCookies(true);
+      setTimeout(() => setIsCopyingCookies(false), 2000);
+      setProfileCookiesStatus('✓ Cookies copied to clipboard!');
+    } else {
+      setProfileCookiesStatus('✗ Failed to copy to clipboard');
+    }
+  };
+
+  const handleDownloadProfileCookiesFile = () => {
+    const ext = profileCookiesFormat === 'json' ? 'json' : 'txt';
+    const blob = new Blob([profileCookiesContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cookies-${(name || 'profile').replace(/\s+/g, '_')}.${ext}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleSaveProfileCookies = async () => {
+    if (!editingProfileId || !window.browserAPI) return;
+    setIsSavingCookies(true);
+    setProfileCookiesStatus('');
+    try {
+      const trimmed = profileCookiesContent.trim();
+      if (!trimmed || trimmed === '[]') {
+        await window.browserAPI.clearAllCookies(editingProfileId);
+        setProfileCookiesCount(0);
+        setProfileCookiesStatus('✓ All cookies cleared from profile.');
+        setIsSavingCookies(false);
+        return;
+      }
+
+      const result = await window.browserAPI.importCookies(editingProfileId, trimmed);
       try {
-        const parsed = JSON.parse(cookieImportText.trim());
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed) && (window.browserAPI as any).saveSavedSession) {
+          await (window.browserAPI as any).saveSavedSession(editingProfileId, {
+            cookies: parsed,
+            openUrls: [],
+          });
+        }
+      } catch {}
+
+      setProfileCookiesStatus(`✓ Saved: ${result.imported} cookies applied to profile (${result.errors} errors)`);
+      await loadCookiesForEditor(editingProfileId, profileCookiesFormat);
+    } catch (err: any) {
+      setProfileCookiesStatus(`✗ Save failed: ${err.message}`);
+    } finally {
+      setIsSavingCookies(false);
+    }
+  };
+
+  const handleClearProfileCookies = async () => {
+    if (!editingProfileId || !window.browserAPI) return;
+    if (!confirm('Are you sure you want to clear all cookies for this profile? Active logins will be logged out.')) return;
+    try {
+      await window.browserAPI.clearAllCookies(editingProfileId);
+      setProfileCookiesContent(profileCookiesFormat === 'json' ? '[]' : '# Netscape HTTP Cookie File\n');
+      setProfileCookiesCount(0);
+      setProfileCookiesStatus('✓ All cookies cleared from profile.');
+    } catch (err: any) {
+      setProfileCookiesStatus(`✗ Failed to clear cookies: ${err.message}`);
+    }
+  };
+
+  const handleSwitchProfileCookiesFormat = async (fmt: 'json' | 'netscape') => {
+    setProfileCookiesFormat(fmt);
+    if (editingProfileId) {
+      await loadCookiesForEditor(editingProfileId, fmt);
+    }
+  };
+
+  const handleSaveCookieModalEdits = async () => {
+    if (!cookieModalProfile || !window.browserAPI) return;
+    setIsSavingCookieModal(true);
+    setCookieStatusMsg('');
+    try {
+      const trimmed = cookieModalContent.trim();
+      if (!trimmed || trimmed === '[]') {
+        if (window.browserAPI.clearAllCookies) {
+          await window.browserAPI.clearAllCookies(cookieModalProfile.id);
+        }
+        setCookieModalCount(0);
+        setCookieStatusMsg('✓ All cookies cleared from profile.');
+        setIsSavingCookieModal(false);
+        return;
+      }
+
+      const result = await window.browserAPI.importCookies(cookieModalProfile.id, trimmed);
+      try {
+        const parsed = JSON.parse(trimmed);
         if (Array.isArray(parsed) && (window.browserAPI as any).saveSavedSession) {
           await (window.browserAPI as any).saveSavedSession(cookieModalProfile.id, {
             cookies: parsed,
@@ -460,12 +698,29 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
           });
         }
       } catch {}
-
-      setCookieStatusMsg(`✓ Imported ${result.imported} cookies (${result.errors} errors)`);
-      setCookieImportText('');
+      setCookieStatusMsg(`✓ Saved: ${result.imported} cookies applied to profile (${result.errors} errors)`);
       await handleExportCookiesFormat(cookieModalFormat);
     } catch (err: any) {
-      setCookieStatusMsg(`✗ Import failed: ${err.message}`);
+      setCookieStatusMsg(`✗ Save failed: ${err.message}`);
+    } finally {
+      setIsSavingCookieModal(false);
+    }
+  };
+
+  const handleCopyCookieModalContent = async () => {
+    if (!cookieModalContent || cookieModalContent.trim() === '[]') {
+      setCookieStatusMsg('⚠️ No cookies to copy (empty)');
+      setTimeout(() => setCookieStatusMsg(''), 2500);
+      return;
+    }
+    const success = await copyTextToClipboard(cookieModalContent);
+    if (success) {
+      setIsCopyingCookieModal(true);
+      setTimeout(() => setIsCopyingCookieModal(false), 2000);
+      setCookieStatusMsg('✓ Cookies copied to clipboard!');
+      setTimeout(() => setCookieStatusMsg(''), 2500);
+    } else {
+      setCookieStatusMsg('✗ Failed to copy to clipboard');
     }
   };
 
@@ -571,11 +826,15 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     setProxyTestResult(null);
     setRemoteDebuggingPort('');
     setTags([]);
+    setProfileCookiesContent('');
+    setProfileCookiesFormat('json');
+    setProfileCookiesCount(0);
+    setProfileCookiesStatus('');
     setEditorTab('general');
     setIsCreateOpen(true);
   };
 
-  const handleOpenEdit = (p: Profile, tab: 'general' | 'proxy' | 'privacy' = 'general') => {
+  const handleOpenEdit = (p: Profile, tab: 'general' | 'proxy' | 'privacy' | 'cookies' = 'general') => {
     if (!isAuthenticated) return;
     setEditingProfileId(p.id);
     setEditorTab(tab);
@@ -601,6 +860,8 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
     setChangeIpUrl((p.proxy as any).changeIpUrl || '');
     setSelectedSavedProxyId('');
     setProxyTestResult(null);
+    setProfileCookiesStatus('');
+    loadCookiesForEditor(p.id, profileCookiesFormat);
     setIsCreateOpen(true);
   };
 
@@ -777,6 +1038,19 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
         color,
         remoteDebuggingPort: remoteDebuggingPort ? Number(remoteDebuggingPort) : undefined,
       } as any);
+
+      if (created && profileCookiesContent.trim() && profileCookiesContent.trim() !== '[]') {
+        try {
+          await window.browserAPI.importCookies(created.id, profileCookiesContent.trim());
+          const parsed = JSON.parse(profileCookiesContent.trim());
+          if (Array.isArray(parsed) && (window.browserAPI as any).saveSavedSession) {
+            await (window.browserAPI as any).saveSavedSession(created.id, {
+              cookies: parsed,
+              openUrls: [],
+            });
+          }
+        } catch {}
+      }
 
       if (andLaunch && created && (window.browserAPI as any).launchProfile) {
         await handleLaunch(created.id);
@@ -1897,6 +2171,7 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                                 <Edit2 size={13.5} style={{ color: '#94a3b8' }} /> Edit Profile
                               </button>
 
+
                               {/* Clone Profile */}
                               <button
                                 disabled={!isAuthenticated}
@@ -2238,6 +2513,48 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                 >
                   <Shield size={14} />
                   Privacy & Automation
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditorTab('cookies');
+                    if (editingProfileId) {
+                      loadCookiesForEditor(editingProfileId, profileCookiesFormat);
+                    }
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '7px 14px',
+                    borderRadius: 7,
+                    border: 'none',
+                    fontSize: 12,
+                    fontWeight: editorTab === 'cookies' ? 600 : 500,
+                    cursor: 'pointer',
+                    backgroundColor: editorTab === 'cookies' ? '#25293d' : 'transparent',
+                    color: editorTab === 'cookies' ? '#ffffff' : '#8890a5',
+                    boxShadow: editorTab === 'cookies' ? '0 2px 8px rgba(0,0,0,0.3)' : 'none',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <Cookie size={14} color="#f59e0b" />
+                  Cookies & Session
+                  {editingProfileId && (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        padding: '1px 6px',
+                        borderRadius: 10,
+                        backgroundColor: '#f59e0b25',
+                        color: '#f59e0b',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {profileCookiesCount}
+                    </span>
+                  )}
                 </button>
               </div>
 
@@ -3632,6 +3949,281 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                     </div>
                   </>
                 )}
+
+                {editorTab === 'cookies' && (
+                  <>
+                    {/* Header info box */}
+                    <div
+                      style={{
+                        padding: '14px 16px',
+                        backgroundColor: '#12141f',
+                        border: '1px solid #23273a',
+                        borderRadius: 10,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 16,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div
+                          style={{
+                            width: 38,
+                            height: 38,
+                            borderRadius: 8,
+                            backgroundColor: '#f59e0b18',
+                            border: '1px solid #f59e0b35',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#f59e0b',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <Cookie size={20} />
+                        </div>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: '#ffffff' }}>
+                              Profile Cookies & Session Data
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: 12,
+                                backgroundColor: profileCookiesCount > 0 ? '#10b98120' : '#33384c',
+                                color: profileCookiesCount > 0 ? '#34d399' : '#94a3b8',
+                                border: `1px solid ${profileCookiesCount > 0 ? '#10b98140' : '#47556940'}`,
+                              }}
+                            >
+                              {profileCookiesCount} Cookies
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 12, color: '#8891a5', marginTop: 2 }}>
+                            View, copy, or edit session cookies. Copying these cookies lets you import them into other profiles or browsers (e.g. Cookie-Editor extension) to load active logins.
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          onClick={handleCopyProfileCookies}
+                          disabled={!profileCookiesContent.trim()}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '7px 14px',
+                            borderRadius: 7,
+                            backgroundColor: isCopyingCookies ? '#10b981' : '#1e2436',
+                            border: `1px solid ${isCopyingCookies ? '#10b981' : '#333f5c'}`,
+                            color: isCopyingCookies ? '#ffffff' : '#38bdf8',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: profileCookiesContent.trim() ? 'pointer' : 'not-allowed',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {isCopyingCookies ? <Check size={13} /> : <Copy size={13} />}
+                          {isCopyingCookies ? 'Copied!' : 'Copy Cookies'}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleDownloadProfileCookiesFile}
+                          disabled={!profileCookiesContent.trim()}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            padding: '7px 12px',
+                            backgroundColor: '#1b1e2c',
+                            border: '1px solid #2d3348',
+                            borderRadius: 7,
+                            color: '#9ba1b0',
+                            fontSize: 12,
+                            cursor: profileCookiesContent.trim() ? 'pointer' : 'not-allowed',
+                          }}
+                        >
+                          <Download size={13} />
+                          Download
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Format Selector & Actions Bar */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 12, color: '#8891a5', fontWeight: 500 }}>Format:</span>
+                        {(['json', 'netscape'] as const).map((fmt) => (
+                          <button
+                            key={fmt}
+                            type="button"
+                            onClick={() => handleSwitchProfileCookiesFormat(fmt)}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: 6,
+                              border: 'none',
+                              fontSize: 11,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              backgroundColor: profileCookiesFormat === fmt ? '#f59e0b' : '#1e2130',
+                              color: profileCookiesFormat === fmt ? '#000000' : '#8891a5',
+                              transition: 'all 0.12s ease',
+                            }}
+                          >
+                            {fmt.toUpperCase()}
+                          </button>
+                        ))}
+                        <span style={{ fontSize: 11, color: '#64748b', marginLeft: 6 }}>
+                          {profileCookiesFormat === 'json' ? '(Standard JSON array)' : '(Netscape / curl cookie.txt format)'}
+                        </span>
+                      </div>
+
+                      {editingProfileId && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <button
+                            type="button"
+                            onClick={() => loadCookiesForEditor(editingProfileId, profileCookiesFormat)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 5,
+                              padding: '4px 10px',
+                              backgroundColor: '#1a1d2b',
+                              border: '1px solid #282d40',
+                              borderRadius: 6,
+                              color: '#8ba2c4',
+                              fontSize: 11,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <RefreshCw size={11} />
+                            Reload
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleClearProfileCookies}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 5,
+                              padding: '4px 10px',
+                              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                              border: '1px solid rgba(239, 68, 68, 0.25)',
+                              borderRadius: 6,
+                              color: '#f87171',
+                              fontSize: 11,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <Trash2 size={11} />
+                            Clear Cookies
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Editable Cookies Textarea */}
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <label style={{ fontSize: 12, fontWeight: 600, color: '#cbd5e1' }}>
+                          Cookies Content ({profileCookiesFormat.toUpperCase()}) — Directly Editable
+                        </label>
+                        <span style={{ fontSize: 11, color: '#64748b' }}>
+                          Edit values, or paste cookies copied from another profile/browser
+                        </span>
+                      </div>
+
+                      <textarea
+                        value={profileCookiesContent}
+                        onChange={(e) => setProfileCookiesContent(e.target.value)}
+                        placeholder={
+                          profileCookiesFormat === 'json'
+                            ? `[\n  {\n    "name": "session_id",\n    "value": "xyz...",\n    "domain": ".example.com",\n    "path": "/",\n    "secure": true,\n    "httpOnly": true\n  }\n]`
+                            : `# Netscape HTTP Cookie File\n.example.com\tTRUE\t/\tTRUE\t1799999999\tsession_id\txyz...`
+                        }
+                        rows={10}
+                        style={{
+                          width: '100%',
+                          backgroundColor: '#0a0b12',
+                          border: '1px solid #282d42',
+                          borderRadius: 8,
+                          color: '#a3e635',
+                          padding: '12px 14px',
+                          fontSize: 11.5,
+                          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                          lineHeight: '1.5',
+                          boxSizing: 'border-box',
+                          outline: 'none',
+                          resize: 'vertical',
+                          minHeight: 180,
+                        }}
+                      />
+                    </div>
+
+                    {/* Feedback & Save Bar */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 14px',
+                        backgroundColor: '#121420',
+                        borderRadius: 8,
+                        border: '1px solid #23273a',
+                      }}
+                    >
+                      <div style={{ fontSize: 12, flex: 1 }}>
+                        {profileCookiesStatus ? (
+                          <span
+                            style={{
+                              color: profileCookiesStatus.startsWith('✓') ? '#34d399' : '#f87171',
+                              fontWeight: 600,
+                            }}
+                          >
+                            {profileCookiesStatus}
+                          </span>
+                        ) : (
+                          <span style={{ color: '#64748b' }}>
+                            {editingProfileId
+                              ? 'Click "Save & Apply Cookies" to commit edits directly to this profile.'
+                              : 'Cookies will be imported automatically when this profile is created.'}
+                          </span>
+                        )}
+                      </div>
+
+                      {editingProfileId && (
+                        <button
+                          type="button"
+                          onClick={handleSaveProfileCookies}
+                          disabled={isSavingCookies}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '7px 16px',
+                            backgroundColor: '#10b981',
+                            border: 'none',
+                            borderRadius: 6,
+                            color: '#ffffff',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: isSavingCookies ? 'not-allowed' : 'pointer',
+                            boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)',
+                          }}
+                        >
+                          <Check size={14} />
+                          {isSavingCookies ? 'Saving...' : 'Save & Apply Cookies'}
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -3715,64 +4307,101 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
         </div>
       )}
 
-      {/* Cookie Import / Export Modal */}
+      {/* Unified Manage Cookies Modal */}
       {cookieModalProfile && (
         <div
           style={{
-            position: 'absolute',
+            position: 'fixed',
             inset: 0,
             backgroundColor: 'rgba(0, 0, 0, 0.75)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 100,
+            zIndex: 1000,
             backdropFilter: 'blur(4px)',
           }}
         >
           <div
             style={{
-              width: 600,
-              maxHeight: '90%',
-              backgroundColor: '#161822',
-              border: '1px solid #2e3347',
+              width: 680,
+              maxHeight: '92%',
+              backgroundColor: '#141622',
+              border: '1px solid #282d42',
               borderRadius: 12,
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.6)',
+              boxShadow: '0 24px 48px rgba(0,0,0,0.7)',
             }}
           >
+            {/* Modal Header */}
             <div
               style={{
                 padding: '16px 20px',
-                borderBottom: '1px solid #282c3e',
+                borderBottom: '1px solid #23283c',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
+                backgroundColor: '#181b2a',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Cookie size={18} color="#f59e0b" />
-                <h3 style={{ fontSize: 15, fontWeight: 700, color: '#ffffff', margin: 0 }}>
-                  Cookie Manager — {cookieModalProfile.name}
-                </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ padding: 6, borderRadius: 8, backgroundColor: 'rgba(245, 158, 11, 0.12)' }}>
+                  <Cookie size={18} color="#f59e0b" />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <h3 style={{ fontSize: 15, fontWeight: 700, color: '#ffffff', margin: 0 }}>
+                      Manage Cookies — {cookieModalProfile.name}
+                    </h3>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: 12,
+                        backgroundColor: cookieModalCount > 0 ? '#10b98120' : '#33384c',
+                        color: cookieModalCount > 0 ? '#34d399' : '#94a3b8',
+                        border: `1px solid ${cookieModalCount > 0 ? '#10b98140' : '#47556940'}`,
+                      }}
+                    >
+                      {cookieModalCount} Cookies
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11.5, color: '#8891a5', marginTop: 2 }}>
+                    View, copy, and edit session cookies. Any edits saved here will apply directly to the profile session.
+                  </div>
+                </div>
               </div>
               <button
                 onClick={() => setCookieModalProfile(null)}
-                style={{ background: 'none', border: 'none', color: '#9ba1b0', cursor: 'pointer' }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#9ba1b0',
+                  cursor: 'pointer',
+                  padding: 4,
+                  borderRadius: 6,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
               >
                 <X size={18} />
               </button>
             </div>
 
-            <div style={{ padding: '16px 20px', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {/* Format Switcher & Download */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            {/* Modal Body */}
+            <div style={{ padding: '16px 20px', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* Actions & Format Toolbar */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                {/* Format Switcher */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 12, color: '#9ba1b0' }}>Export Format:</span>
+                  <span style={{ fontSize: 12, color: '#8891a5', fontWeight: 500 }}>Format:</span>
                   {(['json', 'netscape'] as const).map((fmt) => (
                     <button
                       key={fmt}
+                      type="button"
                       onClick={() => handleExportCookiesFormat(fmt)}
                       style={{
                         padding: '4px 10px',
@@ -3781,93 +4410,155 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
                         fontSize: 11,
                         fontWeight: 600,
                         cursor: 'pointer',
-                        backgroundColor: cookieModalFormat === fmt ? '#f59e0b' : '#232634',
-                        color: cookieModalFormat === fmt ? '#000' : '#9ba1b0',
+                        backgroundColor: cookieModalFormat === fmt ? '#f59e0b' : '#1e2130',
+                        color: cookieModalFormat === fmt ? '#000000' : '#8891a5',
+                        transition: 'all 0.12s ease',
                       }}
                     >
                       {fmt.toUpperCase()}
                     </button>
                   ))}
+                  <span style={{ fontSize: 11, color: '#64748b', marginLeft: 4 }}>
+                    {cookieModalFormat === 'json' ? '(JSON array)' : '(Netscape format)'}
+                  </span>
                 </div>
 
-                <button
-                  onClick={handleDownloadCookieFile}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    padding: '5px 12px',
-                    backgroundColor: '#1e2434',
-                    border: '1px solid #333f5c',
-                    borderRadius: 6,
-                    color: '#38bdf8',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <Download size={12} />
-                  Download Cookies
-                </button>
+                {/* Quick Action Buttons */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={handleCopyCookieModalContent}
+                    disabled={!cookieModalContent.trim()}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '5px 12px',
+                      backgroundColor: isCopyingCookieModal ? '#10b981' : '#1e2436',
+                      border: `1px solid ${isCopyingCookieModal ? '#10b981' : '#333f5c'}`,
+                      borderRadius: 6,
+                      color: isCopyingCookieModal ? '#ffffff' : '#38bdf8',
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      cursor: cookieModalContent.trim() ? 'pointer' : 'not-allowed',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {isCopyingCookieModal ? <Check size={12} /> : <Copy size={12} />}
+                    {isCopyingCookieModal ? 'Copied!' : 'Copy Cookies'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleDownloadCookieFile}
+                    disabled={!cookieModalContent.trim()}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '5px 12px',
+                      backgroundColor: '#1b1e2c',
+                      border: '1px solid #2d3348',
+                      borderRadius: 6,
+                      color: '#9ba1b0',
+                      fontSize: 11.5,
+                      cursor: cookieModalContent.trim() ? 'pointer' : 'not-allowed',
+                    }}
+                  >
+                    <Download size={12} />
+                    Download
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleReloadCookieModal}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '5px 10px',
+                      backgroundColor: '#1a1d2b',
+                      border: '1px solid #282d40',
+                      borderRadius: 6,
+                      color: '#8ba2c4',
+                      fontSize: 11.5,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <RefreshCw size={11} />
+                    Reload
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleClearCookieModal}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '5px 10px',
+                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.25)',
+                      borderRadius: 6,
+                      color: '#f87171',
+                      fontSize: 11.5,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Trash2 size={11} />
+                    Clear
+                  </button>
+                </div>
               </div>
 
-              {/* Stored Cookies Preview */}
+              {/* Editable Cookies Textarea */}
               <div>
-                <label style={{ display: 'block', fontSize: 11, color: '#8b92a2', marginBottom: 4 }}>
-                  Stored Cookies ({cookieModalFormat.toUpperCase()})
-                </label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#cbd5e1' }}>
+                    Cookies Content ({cookieModalFormat.toUpperCase()}) — Directly Editable
+                  </label>
+                  <span style={{ fontSize: 11, color: '#64748b' }}>
+                    Edit values, or paste cookies copied from another profile/browser
+                  </span>
+                </div>
+
                 <textarea
-                  readOnly
                   value={cookieModalContent}
-                  rows={6}
+                  onChange={(e) => setCookieModalContent(e.target.value)}
+                  placeholder={
+                    cookieModalFormat === 'json'
+                      ? `[\n  {\n    "name": "session_id",\n    "value": "xyz...",\n    "domain": ".example.com",\n    "path": "/",\n    "secure": true,\n    "httpOnly": true\n  }\n]`
+                      : `# Netscape HTTP Cookie File\n.example.com\tTRUE\t/\tTRUE\t1799999999\tsession_id\txyz...`
+                  }
+                  rows={13}
                   style={{
                     width: '100%',
-                    backgroundColor: '#0f1017',
-                    border: '1px solid #282c3e',
-                    borderRadius: 6,
+                    backgroundColor: '#0a0b12',
+                    border: '1px solid #282d42',
+                    borderRadius: 8,
                     color: '#a3e635',
-                    padding: 8,
-                    fontSize: 11,
-                    fontFamily: 'monospace',
+                    padding: '12px 14px',
+                    fontSize: 11.5,
+                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                    lineHeight: '1.5',
                     boxSizing: 'border-box',
                     outline: 'none',
+                    resize: 'vertical',
+                    minHeight: 220,
                   }}
                 />
               </div>
 
-              {/* Import Cookies Area */}
-              <div>
-                <label style={{ display: 'block', fontSize: 11, color: '#8b92a2', marginBottom: 4 }}>
-                  Import Cookies (Paste JSON array or Netscape lines)
-                </label>
-                <textarea
-                  placeholder="Paste cookies here..."
-                  value={cookieImportText}
-                  onChange={(e) => setCookieImportText(e.target.value)}
-                  rows={4}
-                  style={{
-                    width: '100%',
-                    backgroundColor: '#0f1017',
-                    border: '1px solid #282c3e',
-                    borderRadius: 6,
-                    color: '#ffffff',
-                    padding: 8,
-                    fontSize: 11,
-                    fontFamily: 'monospace',
-                    boxSizing: 'border-box',
-                    outline: 'none',
-                  }}
-                />
-              </div>
-
+              {/* Live Status Feedback */}
               {cookieStatusMsg && (
                 <div
                   style={{
                     fontSize: 12,
-                    padding: '6px 10px',
+                    padding: '8px 12px',
                     borderRadius: 6,
                     backgroundColor: cookieStatusMsg.startsWith('✓') ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
                     color: cookieStatusMsg.startsWith('✓') ? '#34d399' : '#f87171',
+                    border: `1px solid ${cookieStatusMsg.startsWith('✓') ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
                   }}
                 >
                   {cookieStatusMsg}
@@ -3875,46 +4566,62 @@ export const ProfileSwitcher: React.FC<ProfileSwitcherProps> = ({
               )}
             </div>
 
+            {/* Modal Footer */}
             <div
               style={{
                 padding: '12px 20px',
-                borderTop: '1px solid #282c3e',
-                backgroundColor: '#13141c',
+                borderTop: '1px solid #23283c',
+                backgroundColor: '#181b2a',
                 display: 'flex',
-                justifyContent: 'flex-end',
-                gap: 8,
+                alignItems: 'center',
+                justifyContent: 'space-between',
               }}
             >
-              <button
-                onClick={() => setCookieModalProfile(null)}
-                style={{
-                  padding: '6px 14px',
-                  backgroundColor: '#232635',
-                  border: '1px solid #33384c',
-                  borderRadius: 6,
-                  color: '#9ba1b0',
-                  fontSize: 12,
-                  cursor: 'pointer',
-                }}
-              >
-                Close
-              </button>
-              <button
-                onClick={handleImportCookiesSubmit}
-                disabled={!cookieImportText.trim()}
-                style={{
-                  padding: '6px 16px',
-                  backgroundColor: '#10b981',
-                  border: 'none',
-                  borderRadius: 6,
-                  color: '#fff',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Import Cookies
-              </button>
+              <div style={{ fontSize: 11.5, color: '#64748b' }}>
+                Tip: Copy cookies to load this session in external browser extensions (e.g. Cookie-Editor).
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setCookieModalProfile(null)}
+                  style={{
+                    padding: '7px 16px',
+                    backgroundColor: '#232635',
+                    border: '1px solid #33384c',
+                    borderRadius: 6,
+                    color: '#9ba1b0',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Close
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveCookieModalEdits}
+                  disabled={isSavingCookieModal}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '7px 18px',
+                    backgroundColor: '#10b981',
+                    border: 'none',
+                    borderRadius: 6,
+                    color: '#fff',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: isSavingCookieModal ? 'wait' : 'pointer',
+                    boxShadow: '0 2px 10px rgba(16, 185, 129, 0.3)',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <Check size={13} />
+                  {isSavingCookieModal ? 'Saving...' : 'Save & Apply Cookies'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

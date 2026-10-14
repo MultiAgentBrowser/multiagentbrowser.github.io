@@ -281,7 +281,7 @@ export class BrowserInstanceManager {
         fs.existsSync(path.join(defaultDir, 'Sessions'));
 
       if (!hasResumeSession) {
-        args.push('https://duckduckgo.com');
+        args.push('https://www.google.com');
       }
 
       const child = spawn(executablePath, args, { detached: true, stdio: 'ignore' });

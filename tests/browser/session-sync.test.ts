@@ -65,7 +65,7 @@ describe('Session and Cookie Sync & Resume', () => {
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
     expect(manifest.permissions).toContain('cookies');
     expect(manifest.permissions).toContain('tabs');
-    expect(manifest.host_permissions).toContain('http://127.0.0.1:49500/*');
+    expect(manifest.host_permissions).toContain('<all_urls>');
 
     const bgContent = fs.readFileSync(bgPath, 'utf-8');
     expect(bgContent).toContain('const PROFILE_ID = "test-profile-2";');

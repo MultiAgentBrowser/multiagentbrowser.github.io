@@ -133,6 +133,8 @@ export const IPC_CHANNELS = {
   PROFILE_GET_SAVED_SESSION: 'profile:get-saved-session',
   PROFILE_SET_SAVED_SESSION: 'profile:set-saved-session',
   STORAGE_CLEAR: 'storage:clear',
+  CLIPBOARD_WRITE: 'clipboard:write',
+  CLIPBOARD_READ: 'clipboard:read',
 
   // Network & Proxy
   PROXY_TEST: 'proxy:test',

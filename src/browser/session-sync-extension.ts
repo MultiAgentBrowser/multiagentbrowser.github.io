@@ -14,7 +14,7 @@ export function createSessionSyncExtension(
     version: '1.0.0',
     description: 'Synchronizes cookies and session resume state with Multi Agent.',
     permissions: ['cookies', 'tabs', 'storage'],
-    host_permissions: ['<all_urls>', `http://127.0.0.1:${serverPort}/*`],
+    host_permissions: ['<all_urls>'],
     background: {
       service_worker: 'background.js',
     },
@@ -32,7 +32,6 @@ async function restoreSession() {
   try {
     const res = await fetch(\`\${SERVER_URL}/api/session?profileId=\${encodeURIComponent(PROFILE_ID)}\`);
     if (!res.ok) {
-      isRestoring = false;
       return;
     }
     const data = await res.json();
@@ -80,7 +79,7 @@ async function restoreSession() {
       chrome.tabs.query({}, (tabs) => {
         const currentTabs = tabs || [];
         const isOnlyNewTab = currentTabs.length <= 1 &&
-          (!currentTabs[0]?.url || currentTabs[0].url.startsWith('chrome://') || currentTabs[0].url.includes('duckduckgo.com'));
+          (!currentTabs[0]?.url || currentTabs[0].url.startsWith('chrome://') || currentTabs[0].url.includes('google.com') || currentTabs[0].url.includes('duckduckgo.com'));
 
         if (isOnlyNewTab) {
           const firstUrl = openUrls[0];
@@ -106,13 +105,13 @@ async function collectAndSync() {
   try {
     const cookies = await chrome.cookies.getAll({});
     const tabs = await chrome.tabs.query({});
-    const openUrls = tabs
+    const openUrls = (tabs || [])
       .map((t) => t.url || '')
       .filter((u) => u.startsWith('http://') || u.startsWith('https://'));
 
     const payload = {
       profileId: PROFILE_ID,
-      cookies: cookies.map((c) => ({
+      cookies: (cookies || []).map((c) => ({
         name: c.name,
         value: c.value,
         domain: c.domain,
@@ -148,16 +147,23 @@ function notifyWindowClosed() {
 
 function scheduleSync() {
   if (syncTimeout) clearTimeout(syncTimeout);
-  syncTimeout = setTimeout(collectAndSync, 1000);
+  syncTimeout = setTimeout(collectAndSync, 800);
 }
 
-// Initial restore upon startup
-restoreSession().then(() => {
-  // Listen for changes
-  chrome.cookies.onChanged.addListener(scheduleSync);
+// Top-level listener registrations (MANDATORY for Chrome Manifest V3 service workers)
+try {
+  chrome.cookies.onChanged.addListener(() => {
+    scheduleSync();
+  });
+} catch (e) {}
+
+try {
   chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     if (changeInfo.url) scheduleSync();
   });
+} catch (e) {}
+
+try {
   chrome.tabs.onRemoved.addListener(async () => {
     scheduleSync();
     try {
@@ -167,9 +173,15 @@ restoreSession().then(() => {
       }
     } catch (e) {}
   });
-  chrome.tabs.onCreated.addListener(scheduleSync);
+} catch (e) {}
 
-  // Monitor window closing events
+try {
+  chrome.tabs.onCreated.addListener(() => {
+    scheduleSync();
+  });
+} catch (e) {}
+
+try {
   if (chrome.windows && chrome.windows.onRemoved) {
     chrome.windows.onRemoved.addListener(async () => {
       try {
@@ -180,17 +192,23 @@ restoreSession().then(() => {
       } catch (e) {}
     });
   }
+} catch (e) {}
 
-  // Handle extension / browser suspend (quitting)
+try {
   if (chrome.runtime && chrome.runtime.onSuspend) {
     chrome.runtime.onSuspend.addListener(() => {
       notifyWindowClosed();
     });
   }
+} catch (e) {}
 
-  // Periodic heartbeat sync every 2.5 seconds
-  setInterval(collectAndSync, 2500);
+// Initial restore and first collection
+restoreSession().then(() => {
+  setTimeout(collectAndSync, 1000);
 });
+
+// Periodic heartbeat & sync
+setInterval(collectAndSync, 2000);
 `;
 
   fs.writeFileSync(path.join(targetDir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf-8');
@@ -198,4 +216,3 @@ restoreSession().then(() => {
 
   return targetDir;
 }
-

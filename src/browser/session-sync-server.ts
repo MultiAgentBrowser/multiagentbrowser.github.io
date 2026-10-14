@@ -31,10 +31,11 @@ export class SessionSyncServer extends EventEmitter {
 
     return new Promise((resolve, reject) => {
       this.server = http.createServer((req, res) => {
-        // Enable CORS for Chromium extension requests
+        // Enable CORS & Private Network Access (PNA) for Chromium extension requests
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Access-Control-Request-Private-Network');
+        res.setHeader('Access-Control-Allow-Private-Network', 'true');
 
         if (req.method === 'OPTIONS') {
           res.writeHead(204);
@@ -96,8 +97,8 @@ export class SessionSyncServer extends EventEmitter {
           let body = '';
           req.on('data', (chunk) => {
             body += chunk;
-            if (body.length > 20 * 1024 * 1024) {
-              // 20MB limit
+            if (body.length > 25 * 1024 * 1024) {
+              // 25MB limit
               req.destroy();
             }
           });
@@ -113,14 +114,21 @@ export class SessionSyncServer extends EventEmitter {
               }
 
               this.activeHeartbeats.set(profileId, Date.now());
-              this.setSession(
-                profileId,
-                Array.isArray(cookies) ? cookies : [],
-                Array.isArray(openUrls) ? openUrls : []
-              );
+              const validCookies = Array.isArray(cookies) ? cookies : [];
+              const validUrls = Array.isArray(openUrls) ? openUrls : [];
+
+              this.setSession(profileId, validCookies, validUrls);
+
+              // Also sync to Electron in-process session partition so CookieManager & export have them immediately
+              try {
+                const { CookieManager } = require('../privacy/cookies/cookie-manager');
+                if (validCookies.length > 0) {
+                  CookieManager.importCookies(profileId, JSON.stringify(validCookies)).catch(() => {});
+                }
+              } catch {}
 
               res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ success: true, count: cookies?.length || 0 }));
+              res.end(JSON.stringify({ success: true, count: validCookies.length }));
             } catch (err: any) {
               res.writeHead(400, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify({ error: err.message }));
@@ -174,15 +182,19 @@ export class SessionSyncServer extends EventEmitter {
   }
 
   public getSession(profileId: string): ProfileSessionData {
-    if (!this.sessions.has(profileId)) {
+    let session = this.sessions.get(profileId);
+    if (!session || (!session.cookies || session.cookies.length === 0)) {
       const fromDisk = this.loadSessionFromDisk(profileId);
-      this.sessions.set(profileId, {
-        cookies: fromDisk.cookies,
-        openUrls: fromDisk.openUrls,
-        lastUpdated: Date.now(),
-      });
+      if (fromDisk.cookies.length > 0 || !session) {
+        session = {
+          cookies: fromDisk.cookies,
+          openUrls: fromDisk.openUrls,
+          lastUpdated: Date.now(),
+        };
+        this.sessions.set(profileId, session);
+      }
     }
-    return this.sessions.get(profileId)!;
+    return session || { cookies: [], openUrls: [], lastUpdated: Date.now() };
   }
 
   public saveSessionToDisk(profileId: string, cookies: any[], openUrls: string[]): void {
@@ -191,7 +203,26 @@ export class SessionSyncServer extends EventEmitter {
       fs.mkdirSync(dir, { recursive: true });
 
       const cookiesPath = path.join(dir, 'cookies.json');
+      const cookiesSubdir = path.join(dir, 'cookies');
+      const cookiesSubdirPath = path.join(cookiesSubdir, 'cookies.json');
+
+      // Safeguard: If incoming cookies array is empty, but we already have cookies on disk, do not wipe them
+      if (cookies.length === 0) {
+        const existingPath = fs.existsSync(cookiesPath) ? cookiesPath : (fs.existsSync(cookiesSubdirPath) ? cookiesSubdirPath : null);
+        if (existingPath) {
+          try {
+            const raw = fs.readFileSync(existingPath, 'utf-8');
+            const existing = JSON.parse(raw);
+            if (Array.isArray(existing) && existing.length > 0) {
+              cookies = existing;
+            }
+          } catch {}
+        }
+      }
+
       fs.writeFileSync(cookiesPath, JSON.stringify(cookies, null, 2), 'utf-8');
+      fs.mkdirSync(cookiesSubdir, { recursive: true });
+      fs.writeFileSync(cookiesSubdirPath, JSON.stringify(cookies, null, 2), 'utf-8');
 
       const sessionPath = path.join(dir, 'session.json');
       fs.writeFileSync(
@@ -208,14 +239,38 @@ export class SessionSyncServer extends EventEmitter {
     try {
       const dir = AppPaths.getProfileStorageDir(profileId);
       const cookiesPath = path.join(dir, 'cookies.json');
+      const cookiesSubdirPath = path.join(dir, 'cookies', 'cookies.json');
       const sessionPath = path.join(dir, 'session.json');
 
       let cookies: any[] = [];
       let openUrls: string[] = [];
 
-      if (fs.existsSync(cookiesPath)) {
-        const raw = fs.readFileSync(cookiesPath, 'utf-8');
-        cookies = JSON.parse(raw);
+      const targetCookiesFile = fs.existsSync(cookiesPath)
+        ? cookiesPath
+        : (fs.existsSync(cookiesSubdirPath) ? cookiesSubdirPath : null);
+
+      if (targetCookiesFile) {
+        const raw = fs.readFileSync(targetCookiesFile, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          cookies = parsed;
+        }
+      }
+
+      // Fallback: If cookies.json is empty or missing, read directly from Chromium SQLite database
+      if (cookies.length === 0) {
+        try {
+          const { ChromiumCookieReader } = require('./chromium-cookie-reader');
+          const directCookies = ChromiumCookieReader.readProfileCookies(profileId);
+          if (Array.isArray(directCookies) && directCookies.length > 0) {
+            cookies = directCookies;
+            // Write to disk cache
+            fs.writeFileSync(cookiesPath, JSON.stringify(cookies, null, 2), 'utf-8');
+            if (fs.existsSync(cookiesSubdirPath)) {
+              fs.writeFileSync(cookiesSubdirPath, JSON.stringify(cookies, null, 2), 'utf-8');
+            }
+          }
+        } catch {}
       }
 
       if (fs.existsSync(sessionPath)) {
@@ -238,4 +293,3 @@ export class SessionSyncServer extends EventEmitter {
     }
   }
 }
-

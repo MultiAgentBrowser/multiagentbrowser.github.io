@@ -43,6 +43,8 @@ const IPC_CHANNELS = {
   PROFILE_GET_SAVED_SESSION: 'profile:get-saved-session',
   PROFILE_SET_SAVED_SESSION: 'profile:set-saved-session',
   STORAGE_CLEAR: 'storage:clear',
+  CLIPBOARD_WRITE: 'clipboard:write',
+  CLIPBOARD_READ: 'clipboard:read',
 
   // Network & Proxy
   PROXY_TEST: 'proxy:test',
@@ -117,6 +119,10 @@ const browserAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.COOKIE_IMPORT, { profileId, cookieData }),
   clearStorage: (profileId: string, categories?: string[]) =>
     ipcRenderer.invoke(IPC_CHANNELS.STORAGE_CLEAR, { profileId, categories }),
+  copyToClipboard: (text: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_WRITE, { text }),
+  readFromClipboard: (): Promise<string> =>
+    ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_READ),
 
   // Network & Proxy
   testProxy: (config: any) =>

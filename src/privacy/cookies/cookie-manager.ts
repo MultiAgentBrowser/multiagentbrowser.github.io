@@ -87,7 +87,48 @@ export class CookieManager {
   public static async getCookies(profileId: string, urlFilter?: string): Promise<CookieInfo[]> {
     const targetSession = session.fromPartition(`persist:${profileId}`);
     const filter = urlFilter ? { url: urlFilter } : {};
-    const cookies = await targetSession.cookies.get(filter);
+    let cookies = await targetSession.cookies.get(filter);
+
+    // Fallback: If in-process session has 0 cookies, check SessionSyncServer disk cache
+    if (cookies.length === 0) {
+      try {
+        const { SessionSyncServer } = require('../../browser/session-sync-server');
+        const sessionData = SessionSyncServer.getInstance().getSession(profileId);
+        if (sessionData && sessionData.cookies && sessionData.cookies.length > 0) {
+          const list = sessionData.cookies;
+          return list.map((c: any) => ({
+            name: c.name,
+            value: c.value,
+            domain: c.domain || '',
+            path: c.path || '/',
+            secure: c.secure ?? false,
+            httpOnly: c.httpOnly ?? false,
+            expirationDate: c.expirationDate,
+          }));
+        }
+      } catch {
+        // Non-blocking fallback
+      }
+
+      // Direct Chromium SQLite fallback:
+      try {
+        const { ChromiumCookieReader } = require('../../browser/chromium-cookie-reader');
+        const chromiumCookies = ChromiumCookieReader.readProfileCookies(profileId);
+        if (chromiumCookies && chromiumCookies.length > 0) {
+          return chromiumCookies.map((c: any) => ({
+            name: c.name,
+            value: c.value,
+            domain: c.domain || '',
+            path: c.path || '/',
+            secure: c.secure ?? false,
+            httpOnly: c.httpOnly ?? false,
+            expirationDate: c.expirationDate,
+          }));
+        }
+      } catch {
+        // Non-blocking fallback
+      }
+    }
 
     return cookies.map((c) => ({
       name: c.name,
@@ -107,6 +148,12 @@ export class CookieManager {
     const targetSession = session.fromPartition(`persist:${profileId}`);
     try {
       await targetSession.cookies.remove(url, name);
+      try {
+        const { SessionSyncServer } = require('../../browser/session-sync-server');
+        const allCookies = await this.getCookies(profileId);
+        const existing = SessionSyncServer.getInstance().getSession(profileId);
+        SessionSyncServer.getInstance().setSession(profileId, allCookies, existing?.openUrls || []);
+      } catch {}
       return true;
     } catch {
       return false;
@@ -119,6 +166,13 @@ export class CookieManager {
   public static async clearAllCookies(profileId: string): Promise<void> {
     const targetSession = session.fromPartition(`persist:${profileId}`);
     await targetSession.clearStorageData({ storages: ['cookies'] });
+    try {
+      const { SessionSyncServer } = require('../../browser/session-sync-server');
+      const existing = SessionSyncServer.getInstance().getSession(profileId);
+      SessionSyncServer.getInstance().setSession(profileId, [], existing?.openUrls || []);
+    } catch {
+      // Non-blocking
+    }
   }
 
   /**
@@ -219,6 +273,16 @@ export class CookieManager {
           }
         }
       }
+    }
+
+    // After importing into targetSession, also synchronize to SessionSyncServer & cookies.json
+    try {
+      const { SessionSyncServer } = require('../../browser/session-sync-server');
+      const allCookies = await this.getCookies(profileId);
+      const existing = SessionSyncServer.getInstance().getSession(profileId);
+      SessionSyncServer.getInstance().setSession(profileId, allCookies, existing?.openUrls || []);
+    } catch {
+      // Non-blocking sync
     }
 
     return { imported, errors };

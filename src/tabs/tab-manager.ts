@@ -15,7 +15,7 @@ export class TabManager {
 
     const newTab: Tab = {
       id: tabId,
-      url: options.url || 'https://duckduckgo.com',
+      url: options.url || 'https://www.google.com',
       title: 'New Tab',
       isLoading: false,
       canGoBack: false,

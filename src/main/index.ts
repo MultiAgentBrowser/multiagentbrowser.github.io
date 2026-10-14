@@ -208,6 +208,17 @@ function registerIpcHandlers() {
     return StorageCleaner.clearProfileStorage(profileId, categories);
   });
 
+  ipcMain.handle(IPC_CHANNELS.CLIPBOARD_WRITE, async (_event, { text }) => {
+    const { clipboard } = await import('electron');
+    clipboard.writeText(String(text ?? ''));
+    return true;
+  });
+
+  ipcMain.handle(IPC_CHANNELS.CLIPBOARD_READ, async () => {
+    const { clipboard } = await import('electron');
+    return clipboard.readText();
+  });
+
   // Network & Proxy IPC handlers
   ipcMain.handle(IPC_CHANNELS.PROXY_TEST, async (_event, { config }) => {
     const { ProxyTester } = await import('../network/proxy/proxy-tester');
