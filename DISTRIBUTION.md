@@ -59,6 +59,10 @@ app may show a Gatekeeper warning on another Mac. Before public distribution,
 configure Developer ID signing and Apple notarization credentials and verify
 the downloaded artifact on a clean Mac.
 
+> [!IMPORTANT]
+> **macOS In-App Auto-Updates Require ZIP Files:**
+> `electron-updater` (Squirrel.Mac) strictly requires the `.zip` archives (`Multi Agent-<version>-arm64-mac.zip` and `Multi Agent-<version>-mac.zip`) to perform silent in-app updates. `.dmg` files cannot be mounted or applied in the background. Both `.dmg` (for manual installations) and `.zip` (for in-app auto-updates) must be uploaded to each GitHub release alongside `latest-mac.yml`.
+
 ## Windows
 
 For a Windows installer and ZIP packages, build on a Windows machine:
@@ -70,7 +74,14 @@ npm run pack:win -- --publish never
 ```
 
 The configured targets produce an NSIS Setup `.exe` and ZIP archives for x64
-and ARM64 in `release/`. To build only a specific target and architecture:
+and ARM64 in `release/`:
+
+| Architecture | Installer | ZIP |
+| --- | --- | --- |
+| x64 (64-bit) | `Multi Agent Setup <version>.exe` | `Multi Agent-<version>-win.zip` |
+| ARM64 | `Multi Agent Setup <version>.exe` | `Multi Agent-<version>-arm64-win.zip` |
+
+To build only a specific target and architecture:
 
 ```powershell
 npm run pack:win
@@ -105,15 +116,44 @@ to reduce Windows security warnings.
 
 ## Release
 ```sh
-git tag v1.2.1
-git push origin v1.2.1
+git tag v2.0.0
+git push origin v2.0.0
 
-gh release create v1.2.0 \
-  "release/Multi Agent Setup 1.2.0.exe" \
-  "release/Multi Agent-1.2.0-arm64.dmg" \
-  "release/Multi Agent-1.2.0.dmg" \
+gh release create v2.0.0 \
+  "release/Multi Agent Setup 2.0.0.exe" \
+  "release/Multi Agent-2.0.0-win.zip" \
+  "release/Multi Agent-2.0.0-arm64-win.zip" \
+  "release/Multi Agent-2.0.0-arm64.dmg" \
+  "release/Multi Agent-2.0.0.dmg" \
+  "release/Multi Agent-2.0.0-arm64-mac.zip" \
+  "release/Multi Agent-2.0.0-mac.zip" \
   "release/latest.yml" \
   "release/latest-mac.yml" \
-  --title "Multi Agent v1.2.0" \
-  --notes "Release v1.2.0: Multi Agent Desktop Browser."
+  --title "Multi Agent v2.0.0" \
+  --notes "## Multi Agent v2.0.0
+
+A new major release of Multi Agent, a privacy-focused desktop browser for macOS and Windows.
+
+### Highlights
+- Desktop browser release for macOS and Windows.
+- Privacy-focused browsing experience.
+- Seamless in-app auto-updates on macOS and Windows.
+- Improved release and distribution workflow.
+
+### Downloads
+- **Windows (NSIS Installer):** Multi Agent Setup 2.0.0.exe
+- **Windows (x64 Portable ZIP):** Multi Agent-2.0.0-win.zip
+- **Windows (ARM64 Portable ZIP):** Multi Agent-2.0.0-arm64-win.zip
+- **macOS (Apple Silicon Installer):** Multi Agent-2.0.0-arm64.dmg
+- **macOS (Intel Installer):** Multi Agent-2.0.0.dmg
+- **macOS (Apple Silicon Auto-Update):** Multi Agent-2.0.0-arm64-mac.zip
+- **macOS (Intel Auto-Update):** Multi Agent-2.0.0-mac.zip
+
+### Installation
+Download the appropriate installer for your operating system and follow the installation instructions.
+
+### Upgrade Notice
+This is a major version release. Back up any important browser data before upgrading.
+
+For issues or feedback, please open an issue in the GitHub repository."
 ```
